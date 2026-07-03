@@ -13,6 +13,7 @@ import {
   StatusBar,
   Platform,
   Switch,
+  Alert,
 } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,6 +23,9 @@ import {
   MaterialIcons,
   Feather,
 } from '@expo/vector-icons';
+
+import { router } from 'expo-router';
+import { useAuth } from '../../src/context/AuthContext';
 
 const profileMenus = [
   {
@@ -64,6 +68,30 @@ const settingsMenus = [
 ];
 
 export default function ProfileScreen() {
+  const { signOut, user } = useAuth();
+
+  const handleLogout = async () => {
+    Alert.alert(
+      'Log Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Log Out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await signOut();
+            } finally {
+              // After signOut, global state will update and index.tsx will redirect to login
+              router.replace('/(auth)/login');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView
       style={styles.container}
@@ -100,11 +128,11 @@ export default function ProfileScreen() {
 
             <View style={styles.profileInfo}>
               <Text style={styles.name}>
-                Alexander Pierce
+                {user?.name || 'User'}
               </Text>
 
               <Text style={styles.email}>
-                alexander@gmail.com
+                {user?.email || 'No email'}
               </Text>
             </View>
 
@@ -343,6 +371,7 @@ export default function ProfileScreen() {
         <TouchableOpacity
           activeOpacity={0.85}
           style={styles.logoutButton}
+          onPress={handleLogout}
         >
           <Ionicons
             name="log-out-outline"

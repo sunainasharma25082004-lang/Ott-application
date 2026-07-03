@@ -1,7 +1,7 @@
 // ✅ FULL FIXED PREMIUM PROFILE SCREEN
 // app/ChooseProfile.tsx
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 import {
   View,
@@ -27,77 +27,97 @@ import {
 
 import { router } from 'expo-router';
 
+import { apiClient } from '../src/lib/api';
+import { useAuth } from '../src/context/AuthContext';
+
 const { width } = Dimensions.get('window');
 
 const PROFILE_SIZE = width * 0.22;
 
-const profiles = [
-  {
-    id: '1',
-    name: 'Alex',
-    image:
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=1200',
-    premium: true,
-  },
-
-  {
-    id: '2',
-    name: 'Sarah',
-    image:
-      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=1200',
-  },
-
-  {
-    id: '3',
-    name: 'Kids',
-    image:
-      'https://images.unsplash.com/photo-1503023345310-bd7c1de61c7d?q=80&w=1200',
-  },
-];
-
 export default function ChooseProfile() {
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+
+  // Start with fallback profiles so we never render with empty data
+  const [profiles, setProfiles] = useState([
+    { id: 'demo1', name: 'Alex', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=1200' },
+    { id: 'demo2', name: 'Sarah', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=1200' },
+    { id: 'demo3', name: 'Kids', image: 'https://images.unsplash.com/photo-1503023345310-bd7c1de61c7d?q=80&w=1200' },
+  ]);
+  const [loading, setLoading] = useState(false); // not currently used in UI, but ready if you want a loader later
+
+  // Protect this screen: if not authenticated (after auth check finished), go back to login
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.replace('/(auth)/login');
+    }
+  }, [authLoading, isAuthenticated]);
+
+  useEffect(() => {
+    const loadProfiles = async () => {
+      try {
+        const res = await apiClient.get('/profiles');
+        if (res?.profiles && res.profiles.length > 0) {
+          const mapped = res.profiles.map(p => ({
+            id: p._id || p.id,
+            name: p.name,
+            image: p.avatar || p.image || 'https://i.pravatar.cc/300',
+          }));
+          setProfiles(mapped);
+        }
+        // If no profiles from backend, we keep the demo ones (already in state)
+      } catch (e) {
+        // Keep demo profiles on error (no backend, not logged in, etc.)
+        console.log('Using demo profiles (backend not available or no profiles yet)');
+      }
+    };
+    loadProfiles();
+  }, []);
+
   const openPlatform = () => {
     router.push('/ChoosePlatform');
   };
 
-  const renderProfile = ({ item }: any) => (
-    <TouchableOpacity
-      activeOpacity={0.88}
-      style={styles.profileCard}
-      onPress={openPlatform}
-    >
-      <LinearGradient
-        colors={[
-          'rgba(255,255,255,0.08)',
-          'rgba(255,255,255,0.02)',
-        ]}
-        style={styles.profileGradient}
+  const renderProfile = ({ item }: any) => {
+    if (!item) return null;
+    return (
+      <TouchableOpacity
+        activeOpacity={0.88}
+        style={styles.profileCard}
+        onPress={openPlatform}
       >
-        <View style={styles.imageContainer}>
-          <Image
-            source={{
-              uri: item.image,
-            }}
-            style={styles.profileImage}
-          />
+        <LinearGradient
+          colors={[
+            'rgba(255,255,255,0.08)',
+            'rgba(255,255,255,0.02)',
+          ]}
+          style={styles.profileGradient}
+        >
+          <View style={styles.imageContainer}>
+            <Image
+              source={{
+                uri: item.image || 'https://i.pravatar.cc/300',
+              }}
+              style={styles.profileImage}
+            />
 
-          {item.premium && (
-            <View style={styles.premiumBadge}>
-              <Ionicons
-                name="diamond"
-                size={10}
-                color="#111"
-              />
-            </View>
-          )}
-        </View>
+            {item.premium && (
+              <View style={styles.premiumBadge}>
+                <Ionicons
+                  name="diamond"
+                  size={10}
+                  color="#111"
+                />
+              </View>
+            )}
+          </View>
 
-        <Text style={styles.profileName}>
-          {item.name}
-        </Text>
-      </LinearGradient>
-    </TouchableOpacity>
-  );
+          <Text style={styles.profileName}>
+            {item.name || 'Profile'}
+          </Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -162,13 +182,13 @@ export default function ChooseProfile() {
             >
               <Image
                 source={{
-                  uri: profiles[0].image,
+                  uri: profiles[0]?.image || 'https://i.pravatar.cc/300',
                 }}
                 style={styles.mainProfileImage}
               />
 
               <Text style={styles.mainName}>
-                Alex
+                {profiles[0]?.name || 'User'}
               </Text>
 
               <TouchableOpacity
@@ -202,8 +222,8 @@ export default function ChooseProfile() {
           {/* OTHER PROFILES */}
 
           <FlatList
-            data={profiles.slice(1)}
-            keyExtractor={(item) => item.id}
+            data={profiles.length > 1 ? profiles.slice(1) : []}
+            keyExtractor={(item) => String(item?.id || Math.random())}
             numColumns={2}
             scrollEnabled={false}
             contentContainerStyle={

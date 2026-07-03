@@ -1,14 +1,6 @@
-import { StyleSheet, Text, View } from 'react-native'
-import React from 'react'
+import { Redirect } from 'expo-router';
 
-const signup = () => {
-  return (
-    <View>
-      <Text>signup</Text>
-    </View>
-  )
+export default function SignupStub() {
+  // The main auth experience (Sign In + Register + OTP) lives in login.tsx
+  return <Redirect href="/(auth)/login" />;
 }
-
-export default signup
-
-const styles = StyleSheet.create({})

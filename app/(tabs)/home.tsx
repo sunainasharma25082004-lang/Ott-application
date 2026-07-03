@@ -26,7 +26,8 @@ import { BlurView } from "expo-blur";
 
 import { Ionicons, Feather } from "@expo/vector-icons";
 
-import { categories, trendingMovies } from "../../src/constants/movies";
+import { categories } from "../../src/constants/movies";
+import { apiClient } from "../../src/lib/api";
 
 const { width } = Dimensions.get("window");
 
@@ -100,6 +101,29 @@ const MovieCard = memo(({ item }: { item: MovieItem }) => {
 MovieCard.displayName = "MovieCard";
 
 export default function HomeScreen() {
+  const [trendingMovies, setTrendingMovies] = React.useState<MovieItem[]>([]);
+  const [moviesLoading, setMoviesLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const loadMovies = async () => {
+      try {
+        const res: any = await apiClient.get("/movies?limit=8");
+        const mapped = (res.movies || []).map((m: any) => ({
+          id: m._id || m.id,
+          title: m.title,
+          image: m.thumbnail || m.poster || "https://picsum.photos/400/600",
+        }));
+        setTrendingMovies(mapped.length ? mapped : require("../../src/constants/movies").trendingMovies);
+      } catch {
+        const fallback = require("../../src/constants/movies").trendingMovies;
+        setTrendingMovies(fallback || []);
+      } finally {
+        setMoviesLoading(false);
+      }
+    };
+    loadMovies();
+  }, []);
+
   const renderMovieCard = useCallback(
     ({ item }: { item: MovieItem }) => <MovieCard item={item} />,
     []

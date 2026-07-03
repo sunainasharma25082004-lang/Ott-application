@@ -1,0 +1,110 @@
+---
+pid: 19172
+cwd: "D:\Programming\Viz_Official_01\Ott-application"
+command: "cd \"D:\\Programming\\Viz_Official_01\\Ott-application\\server\"; npm run dev"
+started_at: 2026-06-16T08:05:06.109Z
+running_for_ms: 1024994  
+---
+
+> talenthunt-server@1.0.0 dev
+> node --watch server.js
+
+◇ injected env (26) from .env // tip: ◈ secrets for agents [www.dotenvx.com]
+◇ injected env (0) from .env // tip: ⌘ suppress logs { quiet: true }
+
+========================================
+🎬 Talent Hunt Backend (Production Ready)
+========================================
+🌐 Server listening on 0.0.0.0:5000 (all interfaces)
+🔗 From this PC (web/iOS sim):   http://localhost:5000
+📱 Android Emulator:             http://10.0.2.2:5000
+📱 Physical phone (same WiFi):   http://YOUR_PC_IP:5000
+   👉 Find YOUR_PC_IP by running in PowerShell: ipconfig
+========================================
+
+
+Quick tests (open these in browser from the device you're testing on):
+  • Status (shows DB state):    http://localhost:5000/api/status   (or 10.0.2.2 on Android emu)
+  • Ping (no DB needed):        http://localhost:5000/api/ping
+  • If dbConnected: false → you MUST put a real MongoDB URI in server/.env
+
+Restarting 'server.js'
+◇ injected env (26) from .env // tip: ⌘ override existing { override: true }
+◇ injected env (0) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+
+========================================
+🎬 Talent Hunt Backend (Production Ready)
+========================================
+🌐 Server listening on 0.0.0.0:5000 (all interfaces)
+🔗 From this PC (web/iOS sim):   http://localhost:5000
+📱 Android Emulator:             http://10.0.2.2:5000
+📱 Physical phone (same WiFi):   http://YOUR_PC_IP:5000
+   👉 Find YOUR_PC_IP by running in PowerShell: ipconfig
+========================================
+
+
+Quick tests (open these in browser from the device you're testing on):
+  • Status (shows DB state):    http://localhost:5000/api/status   (or 10.0.2.2 on Android emu)
+  • Ping (no DB needed):        http://localhost:5000/api/ping
+  • If dbConnected: false → you MUST put a real MongoDB URI in server/.env
+
+✅ MongoDB Connected: ac-eeooxcu-shard-00-01.253qrvl.mongodb.net
+📦 Database: test
+GET /api/ping 200 6.765 ms - 124
+Restarting 'server.js'
+◇ injected env (26) from .env // tip: ◈ secrets for agents [www.dotenvx.com]
+◇ injected env (0) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+
+========================================
+🎬 Talent Hunt Backend (Production Ready)
+========================================
+🌐 Server listening on 0.0.0.0:5000 (all interfaces)
+🔗 From this PC (web/iOS sim):   http://localhost:5000
+📱 Android Emulator:             http://10.0.2.2:5000
+📱 Physical phone (same WiFi):   http://YOUR_PC_IP:5000
+   👉 Find YOUR_PC_IP by running in PowerShell: ipconfig
+========================================
+
+
+Quick tests (open these in browser from the device you're testing on):
+  • Status (shows DB state):    http://localhost:5000/api/status   (or 10.0.2.2 on Android emu)
+  • Ping (no DB needed):        http://localhost:5000/api/ping
+  • If dbConnected: false → you MUST put a real MongoDB URI in server/.env
+
+✅ MongoDB Connected: ac-eeooxcu-shard-00-01.253qrvl.mongodb.net
+📦 Database: test
+🔐 [DEV] OTP for demo.manager@test.com: 801195
+POST /api/auth/register 201 363.765 ms - 214
+✅ Email sent to demo.manager@test.com | Subject: Your Talent Hunt Verification Code
+POST /api/auth/register 409 49.775 ms - 71
+POST /api/auth/verify-otp 200 142.248 ms - 603
+POST /api/auth/login 200 244.825 ms - 584
+POST /api/auth/login 401 40.720 ms - 55
+Restarting 'server.js'
+◇ injected env (26) from .env // tip: ⌘ override existing { override: true }
+◇ injected env (0) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+
+========================================
+🎬 Talent Hunt Backend (Production Ready)
+========================================
+🌐 Server listening on 0.0.0.0:5000 (all interfaces)
+🔗 From this PC (web/iOS sim):   http://localhost:5000
+📱 Android Emulator:             http://10.0.2.2:5000
+📱 Physical phone (same WiFi):   http://YOUR_PC_IP:5000
+   👉 Find YOUR_PC_IP by running in PowerShell: ipconfig
+========================================
+
+
+Quick tests (open these in browser from the device you're testing on):
+  • Status (shows DB state):    http://localhost:5000/api/status   (or 10.0.2.2 on Android emu)
+  • Ping (no DB needed):        http://localhost:5000/api/ping
+  • If dbConnected: false → you MUST put a real MongoDB URI in server/.env
+
+✅ MongoDB Connected: ac-eeooxcu-shard-00-02.253qrvl.mongodb.net
+📦 Database: test
+POST /api/auth/login 200 376.072 ms - 584
+🔐 [DEV] OTP for manager.demo@test.com: 186410
+POST /api/auth/register 201 510.410 ms - 232
+✅ Email sent to manager.demo@test.com | Subject: Your Talent Hunt Verification Code
+GET /api/status 200 0.888 ms - 273
+⚠️  MongoDB disconnected

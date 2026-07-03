@@ -1,14 +1,6 @@
-import { StyleSheet, Text, View } from 'react-native'
-import React from 'react'
+import { Redirect } from 'expo-router';
 
-const otpverification = () => {
-  return (
-    <View>
-      <Text>otpverification</Text>
-    </View>
-  )
+export default function OTPVerificationStub() {
+  // OTP is handled inline inside the unified login.tsx screen
+  return <Redirect href="/(auth)/login" />;
 }
-
-export default otpverification
-
-const styles = StyleSheet.create({})
