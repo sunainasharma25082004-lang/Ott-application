@@ -100,6 +100,8 @@ export default function WatchScreen() {
   useEffect(() => {
     if (sourceUrl) {
       player.replace(sourceUrl);
+      player.volume = 1;
+      player.muted = false;
       player.play();
     }
   }, [sourceUrl, player]);
@@ -430,7 +432,7 @@ export default function WatchScreen() {
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
-  const showSkipIntro = currentTime < SKIP_INTRO_MAX_SECONDS && currentTime > 5;
+  const showSkipIntro = duration >= 600 && currentTime < SKIP_INTRO_MAX_SECONDS && currentTime > 5;
   const isEpisode = contentType === 'Episode';
   const episodes = isEpisode ? related : [];
   const currentEpIdx = episodes.findIndex((e) => e.id === params.contentId);
