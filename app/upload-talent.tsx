@@ -1,6 +1,4 @@
-// app/upload-talent.tsx
-
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { router } from "expo-router";
 import {
   View,
@@ -12,7 +10,14 @@ import {
   Platform,
   ImageBackground,
   Dimensions,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
+
+import { useAuth } from '../src/context/AuthContext';
+import { UPLOAD_GUIDELINES } from '../src/constants/uploadGuidelines';
+import { apiClient } from '../src/lib/api';
+import { openVideo, VideoItem } from '../src/utils/videoRouting';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -25,34 +30,54 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
 
-const candidates = [
-  {
-    id: '1',
-    name: 'Aarav Mehta',
-    role: 'Web Series Actor',
-    earnings: '$12K Earned',
-    image:
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=1200&auto=format&fit=crop',
-  },
-  {
-    id: '2',
-    name: 'Kiara Sharma',
-    role: 'Drama Artist',
-    earnings: '$9K Earned',
-    image:
-      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=1200&auto=format&fit=crop',
-  },
-  {
-    id: '3',
-    name: 'Rohan Kapoor',
-    role: 'Movie Performer',
-    earnings: '$15K Earned',
-    image:
-      'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=1200&auto=format&fit=crop',
-  },
-];
+interface Candidate extends VideoItem {
+  votes: number;
+}
 
 export default function UploadTalentScreen() {
+  const { isAuthenticated } = useAuth();
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [candidatesLoading, setCandidatesLoading] = useState(true);
+
+  useEffect(() => {
+    apiClient
+      .get('/talent?limit=10')
+      .then((res: any) => {
+        const mapped: Candidate[] = (res?.talent || []).map((t: any) => ({
+          id: t._id,
+          videoUrl: t.auditionVideo,
+          title: t.name,
+          thumbnail: t.thumbnail || 'https://picsum.photos/400/600',
+          durationSeconds: t.duration || 9999,
+          contentType: 'Talent' as const,
+          subtitle: t.category,
+          category: t.category,
+          votes: t.votes || 0,
+        }));
+        setCandidates(mapped);
+      })
+      .catch(() => {})
+      .finally(() => setCandidatesLoading(false));
+  }, []);
+
+  const handleUploadPress = useCallback(() => {
+    if (!isAuthenticated) {
+      Alert.alert(
+        'Authentication Required',
+        'You need to register or login first to upload your acting reels.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Login / Register',
+            onPress: () => router.replace('/(auth)/login'),
+          },
+        ]
+      );
+    } else {
+      router.push("/talentform");
+    }
+  }, [isAuthenticated]);
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar
@@ -105,7 +130,10 @@ export default function UploadTalentScreen() {
             MP4 • MOV • Reels • Acting Clips
           </Text>
 
-          <TouchableOpacity activeOpacity={0.85}>
+          <TouchableOpacity
+            activeOpacity={0.88}
+            onPress={handleUploadPress}
+          >
             <LinearGradient
               colors={['#FF416C', '#FF4B2B']}
               start={{ x: 0, y: 0 }}
@@ -118,18 +146,33 @@ export default function UploadTalentScreen() {
                 color="#fff"
               />
 
-            <TouchableOpacity
-  activeOpacity={0.9}
-  style={styles.uploadButton}
-  onPress={() => router.push("/talentform")}
->
-  <Text style={styles.uploadButtonText}>
-    Upload Video
-  </Text>
-</TouchableOpacity>
+              <Text style={styles.uploadButtonText}>
+                Upload Video
+              </Text>
             </LinearGradient>
           </TouchableOpacity>
         </LinearGradient>
+
+        {/* UPLOAD GUIDELINES */}
+
+        <View style={styles.guidelinesCard}>
+          <View style={styles.guidelinesHeaderRow}>
+            <Ionicons name="shield-checkmark-outline" size={20} color="#FFB800" />
+            <Text style={styles.guidelinesTitle}>Video Upload Guidelines</Text>
+          </View>
+
+          {UPLOAD_GUIDELINES.map((rule, i) => (
+            <View key={i} style={styles.ruleRow}>
+              <Ionicons
+                name="checkmark-circle"
+                size={16}
+                color="#00FFB2"
+                style={{ marginTop: 2 }}
+              />
+              <Text style={styles.ruleText}>{rule}</Text>
+            </View>
+          ))}
+        </View>
 
         {/* INFO SECTION */}
 
@@ -151,57 +194,81 @@ export default function UploadTalentScreen() {
         {/* TOP CANDIDATES */}
 
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
-            Top Candidates
-          </Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <View>
+              <Text style={styles.sectionTitle}>
+                Top Candidates
+              </Text>
 
-          <Text style={styles.sectionSub}>
-            Trending performers on our platform
-          </Text>
+              <Text style={styles.sectionSub}>
+                Trending performers on our platform
+              </Text>
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 14 }}>
+              <TouchableOpacity onPress={() => router.push('/talent')}>
+                <Ionicons name="grid-outline" size={22} color="#8B93A1" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push('/talent/leaderboard')}>
+                <Ionicons name="trophy-outline" size={22} color="#FFB800" />
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
 
-        {candidates.map((item) => (
-          <ImageBackground
-            key={item.id}
-            source={{ uri: item.image }}
-            imageStyle={styles.candidateImage}
-            style={styles.candidateCard}
-          >
-            <LinearGradient
-              colors={[
-                'transparent',
-                'rgba(0,0,0,0.85)',
-              ]}
-              style={styles.overlay}
+        {candidatesLoading ? (
+          <ActivityIndicator style={{ marginTop: 20 }} color="#FF4B2B" />
+        ) : candidates.length === 0 ? (
+          <Text style={styles.emptyText}>No approved submissions yet — be the first!</Text>
+        ) : (
+          candidates.map((item) => (
+            <TouchableOpacity
+              key={item.id}
+              activeOpacity={0.9}
+              onPress={() => openVideo(item, candidates)}
             >
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>
-                  TOP TALENT
-                </Text>
-              </View>
+              <ImageBackground
+                source={{ uri: item.thumbnail }}
+                imageStyle={styles.candidateImage}
+                style={styles.candidateCard}
+              >
+                <LinearGradient
+                  colors={[
+                    'transparent',
+                    'rgba(0,0,0,0.85)',
+                  ]}
+                  style={styles.overlay}
+                >
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>
+                      TOP TALENT
+                    </Text>
+                  </View>
 
-              <Text style={styles.candidateName}>
-                {item.name}
-              </Text>
+                  <Text style={styles.candidateName}>
+                    {item.title}
+                  </Text>
 
-              <Text style={styles.candidateRole}>
-                {item.role}
-              </Text>
+                  <Text style={styles.candidateRole}>
+                    {item.subtitle}
+                  </Text>
 
-              <View style={styles.earnRow}>
-                <Ionicons
-                  name="cash-outline"
-                  size={16}
-                  color="#00FFB2"
-                />
+                  <View style={styles.earnRow}>
+                    <Ionicons
+                      name="heart"
+                      size={16}
+                      color="#00FFB2"
+                    />
 
-                <Text style={styles.earnText}>
-                  {item.earnings}
-                </Text>
-              </View>
-            </LinearGradient>
-          </ImageBackground>
-        ))}
+                    <Text style={styles.earnText}>
+                      {item.votes} votes
+                    </Text>
+                  </View>
+                </LinearGradient>
+              </ImageBackground>
+            </TouchableOpacity>
+          ))
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -292,6 +359,42 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+
+  guidelinesCard: {
+    marginHorizontal: 20,
+    marginTop: 28,
+    backgroundColor: 'rgba(255,184,0,0.06)',
+    borderRadius: 24,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(255,184,0,0.2)',
+  },
+
+  guidelinesHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+
+  guidelinesTitle: {
+    color: '#FFB800',
+    fontSize: 17,
+    fontWeight: '800',
+  },
+
+  ruleRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 12,
+  },
+
+  ruleText: {
+    color: '#C4CAD4',
+    fontSize: 14,
+    lineHeight: 20,
+    flex: 1,
   },
 
   infoCard: {
@@ -394,5 +497,13 @@ const styles = StyleSheet.create({
     marginLeft: 6,
     fontSize: 14,
     fontWeight: '700',
+  },
+
+  emptyText: {
+    color: '#556',
+    textAlign: 'center',
+    fontSize: 13,
+    marginTop: 10,
+    marginHorizontal: 20,
   },
 });

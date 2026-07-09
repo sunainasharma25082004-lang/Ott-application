@@ -41,9 +41,6 @@ const TAB_CONTAINER_WIDTH =
 
 const TAB_WIDTH = TAB_CONTAINER_WIDTH / 2;
 
-/* =========================
-   INPUT FIELD (controlled)
-========================= */
 
 const InputField = memo(
   ({
@@ -89,10 +86,6 @@ const InputField = memo(
     </View>
   )
 );
-
-/* =========================
-   MAIN BUTTON
-========================= */
 
 const MainButton = memo(
   ({
@@ -144,14 +137,17 @@ const SocialButton = memo(
 ========================= */
 
 export default function LoginScreen() {
-  const { signIn, isAuthenticated } = useAuth();
+  const { signIn, isAuthenticated, user } = useAuth();
 
-  // If we become authenticated while on this screen (e.g. from another tab), leave immediately
   useEffect(() => {
     if (isAuthenticated) {
-      router.replace("/ChooseProfile");
+      if (user?.role === 'admin') {
+        router.replace("/admin/dashboard");
+      } else {
+        router.replace("/ChooseProfile");
+      }
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user]);
 
   const [activeTab, setActiveTab] =
     useState<
@@ -229,12 +225,42 @@ export default function LoginScreen() {
 
       if (res.accessToken) {
         const userData = res.user || null;
+
+        if (userData?.role === "admin") {
+          setError("Admin accounts cannot log in here. Please use the Admin Panel at /admin.");
+          if (Platform.OS === 'web') {
+            window.alert("Admin accounts must log in through the Admin Panel.\n\nGo to: /admin");
+          } else {
+            Alert.alert("Access Denied", "Admin accounts can only log in through the web Admin Panel at /admin.");
+          }
+          return;
+        }
+
         await signIn(res.accessToken, userData);
         Alert.alert("Success", "Logged in successfully!");
         router.replace("/ChooseProfile");
       }
     } catch (err: any) {
       let msg = err?.message || "Login failed. Please check your credentials.";
+
+      if (err?.status === 404) {
+        setError(msg);
+        Alert.alert(
+          "Registration Required",
+          msg,
+          [
+            {
+              text: "Register Now",
+              onPress: () => switchTab("register"),
+            },
+            {
+              text: "Cancel",
+              style: "cancel",
+            }
+          ]
+        );
+        return;
+      }
 
       if (err?.status === 422 && err?.errors && Array.isArray(err.errors)) {
         msg = err.errors.map((e: any) => `${e.field}: ${e.message}`).join('\n');
@@ -466,8 +492,6 @@ export default function LoginScreen() {
                   color="#fff"
                 />
               </TouchableOpacity>
-
-              {/* SKIP BUTTON */}
 
               <TouchableOpacity
                 activeOpacity={0.8}
@@ -746,23 +770,7 @@ export default function LoginScreen() {
               />
             </View>
 
-            {__DEV__ && !showOtpInput && activeTab === "signin" && (
-              <View style={styles.demoBox}>
-                <Text style={styles.demoTitle}>Quick demo login</Text>
-                <Text style={styles.demoText}>Email: demo.manager@test.com</Text>
-                <Text style={styles.demoText}>Password: Demo@1234</Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    setEmail("demo.manager@test.com");
-                    setPassword("Demo@1234");
-                  }}
-                  style={styles.demoFillBtn}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.demoFillText}>Fill demo credentials</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+
 
             {/* Dev debug helper - shows only in development */}
             {__DEV__ && (
@@ -1070,41 +1078,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 
-  demoBox: {
-    marginTop: 20,
-    backgroundColor: "#F8F8F8",
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#E5E5E5",
-  },
 
-  demoTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#333",
-    marginBottom: 8,
-  },
-
-  demoText: {
-    fontSize: 12,
-    color: "#555",
-    marginBottom: 4,
-  },
-
-  demoFillBtn: {
-    marginTop: 10,
-    alignSelf: "flex-start",
-    backgroundColor: "#000",
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-  },
-
-  demoFillText: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "600",
-  },
 });
 

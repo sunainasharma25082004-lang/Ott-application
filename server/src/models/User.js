@@ -48,6 +48,11 @@ const userSchema = new mongoose.Schema(
       type: Date,
       select: false,
     },
+    theme: {
+      type: String,
+      enum: ["light", "dark"],
+      default: "dark",
+    },
     // For future refresh token rotation
     refreshToken: {
       type: String,

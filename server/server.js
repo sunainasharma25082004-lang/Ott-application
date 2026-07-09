@@ -1,27 +1,37 @@
 require("dotenv").config();
 const express = require("express");
+const path = require("path");
 const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const hpp = require("hpp");
-const dns = require('dns');
-dns.setServers(['8.8.8.8', '8.8.4.4']);
+// Use system DNS resolver to prevent local MongoDB connection timeouts
+// const dns = require('dns');
+// dns.setServers(['8.8.8.8', '8.8.4.4']);
 
 
 const connectDB = require("./src/configs/Database");
 const { getConnectionStatus } = require("./src/configs/Database");
+const seedAdminUser = require("./src/utils/seedAdmin");
 const errorHandler = require("./src/middlewares/errorHandler");
 const { apiLimiter } = require("./src/middlewares/rateLimiter");
 
 // Connect to MongoDB (non-blocking - server starts even if DB is down)
-connectDB().catch(() => {});
+connectDB()
+  .then(() => seedAdminUser())
+  .catch(() => {});
 
 const app = express();
 
 // ==================== SECURITY & PRODUCTION MIDDLEWARE ====================
 
-// Helmet - sets secure HTTP headers
-app.use(helmet());
+// Helmet - sets secure HTTP headers.
+// Allow locally-served media (/uploads) to load from the web/app on a different
+// port by relaxing the Cross-Origin-Resource-Policy (defaults to same-origin).
+app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
+
+// Serve locally-stored uploads (used when Cloudinary is not configured).
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Prevent HTTP Parameter Pollution attacks
 app.use(hpp());
@@ -107,6 +117,10 @@ app.use("/api/series", require("./src/routes/seriesRoutes"));
 app.use("/api/talent", require("./src/routes/talentRoutes"));
 app.use("/api/wishlist", require("./src/routes/wishlistRoutes"));
 app.use("/api/search", require("./src/routes/searchRoutes"));
+app.use("/api/watch-history", require("./src/routes/watchHistoryRoutes"));
+app.use("/api/notifications", require("./src/routes/notificationRoutes"));
+app.use("/api/home", require("./src/routes/homeRoutes"));
+app.use("/api/admin", require("./src/routes/adminRoutes"));
 
 // 404 Handler
 app.use((req, res) => {

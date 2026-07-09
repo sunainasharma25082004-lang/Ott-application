@@ -41,6 +41,9 @@ server/.env
 server/.env.local
 server/.env.*.local
 
+# Locally-stored uploads (dev fallback when Cloudinary is not configured)
+server/uploads/
+
 # typescript
 *.tsbuildinfo
 

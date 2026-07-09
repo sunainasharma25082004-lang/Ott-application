@@ -36,6 +36,9 @@ const talentSchema = new mongoose.Schema(
       type: String, // Cloudinary video url
       required: true,
     },
+    duration: {
+      type: Number, // Video length in seconds (from Cloudinary upload result)
+    },
     thumbnail: {
       type: String, // Cloudinary image
     },
@@ -59,6 +62,18 @@ const talentSchema = new mongoose.Schema(
     isFeatured: {
       type: Boolean,
       default: false,
+    },
+    // Admin review workflow
+    adminReviewedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    reviewedAt: {
+      type: Date,
+    },
+    adminNotes: {
+      type: String,
+      maxlength: 1000,
     },
   },
   { timestamps: true }

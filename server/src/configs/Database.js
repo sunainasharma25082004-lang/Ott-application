@@ -34,4 +34,4 @@ mongoose.connection.on("disconnected", () => {
 });
 
 module.exports = connectDB;
-module.exports.getConnectionStatus = () => isConnected;
+module.exports.getConnectionStatus = () => mongoose.connection.readyState === 1;

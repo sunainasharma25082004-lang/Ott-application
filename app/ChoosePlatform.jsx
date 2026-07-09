@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useAuth } from "../src/context/AuthContext";
 
 const { width } = Dimensions.get("window");
 
@@ -39,12 +40,11 @@ const DATA = [
     image:
       "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?q=80&w=1200&auto=format&fit=crop",
 
-    // 👇 YE CHANGE KIYA HAI
     route: "/upload-talent",
   },
 ];
 
-const Card = memo(({ item }: any) => {
+const Card = memo(({ item }) => {
   return (
     <TouchableOpacity
       activeOpacity={0.9}
@@ -82,6 +82,8 @@ const Card = memo(({ item }: any) => {
 });
 
 export default function ChoosePlatform() {
+  const { user, isAuthenticated, selectedProfile } = useAuth();
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <StatusBar
@@ -106,14 +108,16 @@ export default function ChoosePlatform() {
           <View style={styles.profileRow}>
             <Image
               source={{
-                uri: "https://randomuser.me/api/portraits/men/32.jpg",
+                uri: isAuthenticated ? (selectedProfile?.image || user?.avatar || "https://i.pravatar.cc/300") : "https://randomuser.me/api/portraits/men/32.jpg",
               }}
               style={styles.avatar}
             />
 
             <View style={styles.userInfo}>
               <Text style={styles.welcomeText}>Welcome back,</Text>
-              <Text style={styles.username}>Alex</Text>
+              <Text style={styles.username}>
+                {isAuthenticated ? (selectedProfile?.name || user?.name || "User") : "Guest"}
+              </Text>
             </View>
           </View>
 

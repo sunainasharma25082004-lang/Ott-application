@@ -32,6 +32,14 @@ const profileMenus = [
     id: 1,
     icon: 'person-outline',
     title: 'Personal Details',
+    route: '/profile-details',
+  },
+
+  {
+    id: 4,
+    icon: 'notifications-outline',
+    title: 'Notifications',
+    route: '/notifications',
   },
 
   {
@@ -68,28 +76,49 @@ const settingsMenus = [
 ];
 
 export default function ProfileScreen() {
-  const { signOut, user } = useAuth();
+  const { signOut, user, isAuthenticated, selectedProfile } = useAuth();
 
-  const handleLogout = async () => {
-    Alert.alert(
-      'Log Out',
-      'Are you sure you want to sign out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Log Out',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await signOut();
-            } finally {
-              // After signOut, global state will update and index.tsx will redirect to login
-              router.replace('/(auth)/login');
-            }
+  const displayedProfileMenus = user?.role === 'admin' ? [
+    ...profileMenus,
+    {
+      id: 99,
+      icon: 'shield-checkmark-outline',
+      title: 'Admin Console',
+      route: '/admin/dashboard',
+    }
+  ] : profileMenus;
+
+  const doLogout = async () => {
+    try {
+      await signOut();
+      console.log('[Settings] Signed out successfully');
+    } catch (err) {
+      console.log('[Settings] Sign out error (ignored):', err);
+    }
+    // Navigate to root — index.tsx will check isAuthenticated=false and redirect to login
+    router.replace('/');
+  };
+
+  const handleLogout = () => {
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm('Are you sure you want to sign out?');
+      if (confirmed) {
+        doLogout();
+      }
+    } else {
+      Alert.alert(
+        'Log Out',
+        'Are you sure you want to sign out?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Log Out',
+            style: 'destructive',
+            onPress: doLogout,
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
 
   return (
@@ -121,31 +150,42 @@ export default function ProfileScreen() {
           <View style={styles.profileRow}>
             <Image
               source={{
-                uri: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330',
+                uri: isAuthenticated ? (selectedProfile?.image || user?.avatar || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330') : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde',
               }}
               style={styles.avatar}
             />
 
             <View style={styles.profileInfo}>
               <Text style={styles.name}>
-                {user?.name || 'User'}
+                {isAuthenticated ? (selectedProfile?.name || user?.name || 'User') : 'Guest User'}
               </Text>
 
               <Text style={styles.email}>
-                {user?.email || 'No email'}
+                {isAuthenticated ? (user?.email || 'No email') : 'Sign in to access premium features'}
               </Text>
             </View>
 
-            <TouchableOpacity
-              style={styles.editButton}
-              activeOpacity={0.8}
-            >
-              <Text
-                style={styles.editText}
+            {!isAuthenticated ? (
+              <TouchableOpacity
+                style={[styles.editButton, { backgroundColor: '#F4B840' }]}
+                activeOpacity={0.8}
+                onPress={() => router.replace('/(auth)/login')}
               >
-                Edit Profile
-              </Text>
-            </TouchableOpacity>
+                <Text style={[styles.editText, { color: '#000', fontWeight: '700' }]}>
+                  Sign In
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.editButton}
+                activeOpacity={0.8}
+                onPress={() => router.push('/profile-details')}
+              >
+                <Text style={styles.editText}>
+                  Edit Profile
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* AVATAR COLORS */}
@@ -214,18 +254,23 @@ export default function ProfileScreen() {
         </Text>
 
         <View style={styles.menuCard}>
-          {profileMenus.map((item) => (
+          {displayedProfileMenus.map((item) => (
             <TouchableOpacity
               key={item.id}
               style={styles.menuItem}
               activeOpacity={0.8}
+              onPress={() => {
+                if ('route' in item && item.route) {
+                  router.push(item.route as any);
+                }
+              }}
             >
               <View style={styles.leftRow}>
                 <View
                   style={styles.iconBox}
                 >
                   <Ionicons
-                    name={item.icon}
+                    name={item.icon as any}
                     size={18}
                     color="#FFD166"
                   />
@@ -344,7 +389,7 @@ export default function ProfileScreen() {
                   style={styles.iconBox}
                 >
                   <Ionicons
-                    name={item.icon}
+                    name={item.icon as any}
                     size={18}
                     color="#FFD166"
                   />
@@ -371,16 +416,16 @@ export default function ProfileScreen() {
         <TouchableOpacity
           activeOpacity={0.85}
           style={styles.logoutButton}
-          onPress={handleLogout}
+          onPress={isAuthenticated ? handleLogout : () => router.replace('/(auth)/login')}
         >
           <Ionicons
-            name="log-out-outline"
+            name={isAuthenticated ? "log-out-outline" : "log-in-outline"}
             size={20}
-            color="#FF6B6B"
+            color={isAuthenticated ? "#FF6B6B" : "#F4B840"}
           />
 
-          <Text style={styles.logoutText}>
-            Log Out
+          <Text style={[styles.logoutText, !isAuthenticated && { color: "#F4B840" }]}>
+            {isAuthenticated ? "Log Out" : "Sign In / Register"}
           </Text>
         </TouchableOpacity>
       </ScrollView>

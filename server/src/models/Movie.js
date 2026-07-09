@@ -21,6 +21,9 @@ const movieSchema = new mongoose.Schema(
     videoUrl: {
       type: String, // main playable url (mp4 or hls later)
     },
+    trailerUrl: {
+      type: String, // optional short trailer/preview
+    },
     duration: {
       type: Number, // minutes
       default: 120,
@@ -60,6 +63,10 @@ const movieSchema = new mongoose.Schema(
     views: {
       type: Number,
       default: 0,
+    },
+    isDummy: {
+      type: Boolean,
+      default: true,
     },
   },
   { timestamps: true }

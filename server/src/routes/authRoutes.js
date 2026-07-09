@@ -9,6 +9,7 @@ const {
   getMe,
   logout,
   refreshToken,
+  updateTheme,
 } = require("../controllers/authController");
 
 const { protect } = require("../middlewares/auth");
@@ -18,6 +19,7 @@ const {
   loginValidator,
   otpValidator,
   resendOtpValidator,
+  themeValidator,
 } = require("../validators/authValidators");
 
 const { authLimiter, otpLimiter } = require("../middlewares/rateLimiter");
@@ -34,6 +36,7 @@ router.post("/refresh", authLimiter, refreshToken);
 // Protected routes
 router.get("/me", protect, getMe);
 router.post("/logout", protect, logout);
+router.put("/theme", protect, themeValidator, validate, updateTheme);
 
 module.exports = router;
 

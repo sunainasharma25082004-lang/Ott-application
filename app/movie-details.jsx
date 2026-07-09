@@ -1,7 +1,7 @@
 
 // app/movie-details.jsx
 
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useEffect, useState } from 'react';
 
 import {
   View,
@@ -31,59 +31,13 @@ import {
   useLocalSearchParams,
   router,
 } from 'expo-router';
+import { useAuth } from '../src/context/AuthContext';
+import { apiClient } from '../src/lib/api';
+import { openVideo } from '../src/utils/videoRouting';
+import { useDownloads } from '../src/context/DownloadsContext';
+import { getQualityVariants } from '../src/utils/cloudinaryVideo';
 
 const { width, height } = Dimensions.get('window');
-
-const cast = [
-  {
-    id: 1,
-    name: 'Emma Stone',
-    image:
-      'https://i.pravatar.cc/150?img=32',
-  },
-  {
-    id: 2,
-    name: 'Chris Evans',
-    image:
-      'https://i.pravatar.cc/150?img=12',
-  },
-  {
-    id: 3,
-    name: 'Zendaya',
-    image:
-      'https://i.pravatar.cc/150?img=47',
-  },
-  {
-    id: 4,
-    name: 'Ryan Gosling',
-    image:
-      'https://i.pravatar.cc/150?img=15',
-  },
-];
-
-const moreMovies = [
-  {
-    id: 1,
-    title: 'Galaxy Wars',
-    genre: 'Adventure',
-    image:
-      'https://picsum.photos/400/600?random=1',
-  },
-  {
-    id: 2,
-    title: 'Dark Planet',
-    genre: 'Sci-Fi',
-    image:
-      'https://picsum.photos/400/600?random=2',
-  },
-  {
-    id: 3,
-    title: 'Future World',
-    genre: 'Action',
-    image:
-      'https://picsum.photos/400/600?random=3',
-  },
-];
 
 const CastCard = memo(({ item }) => {
   return (
@@ -101,9 +55,14 @@ const CastCard = memo(({ item }) => {
         style={styles.castImage}
       />
 
-      <Text style={styles.castName}>
+      <Text style={styles.castName} numberOfLines={1}>
         {item.name}
       </Text>
+      {!!item.character && (
+        <Text style={styles.castCharacter} numberOfLines={1}>
+          {item.character}
+        </Text>
+      )}
     </TouchableOpacity>
   );
 });
@@ -172,19 +131,96 @@ const MoreMovieCard = memo(
 );
 
 export default function MovieDetails() {
-  const {
-    id,
-    title,
-    image,
-  } = useLocalSearchParams();
+  const { id, title, image } =
+    useLocalSearchParams();
+  const { isAuthenticated } = useAuth();
+
+  // Full movie doc (videoUrl/duration) is not passed via nav params — fetch it by id.
+  const [movie, setMovie] = useState(null);
+  const [related, setRelated] = useState([]);
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+
+    console.log('[MovieDetails] Fetching details for ID:', id);
+    apiClient
+      .get(`/movies/${id}`)
+      .then((res) => {
+        console.log('[MovieDetails] Fetch result:', res);
+        if (!cancelled && res?.movie) setMovie(res.movie);
+      })
+      .catch((err) => {
+        console.error('[MovieDetails] Fetch error:', err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  // "More Like This" — real movies from the same primary genre (fallback: latest).
+  useEffect(() => {
+    if (!movie) return;
+    let cancelled = false;
+    const primaryGenre = movie.genres?.[0];
+    const endpoint = primaryGenre
+      ? `/movies?genre=${encodeURIComponent(primaryGenre)}&limit=10`
+      : '/movies?limit=10';
+    apiClient
+      .get(endpoint)
+      .then((res) => {
+        if (cancelled) return;
+        const items = (res?.movies || []).filter((m) => m._id !== movie._id).slice(0, 8);
+        setRelated(items);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [movie]);
+
+  // ── Display values derived from the real movie (fall back to nav params) ──
+  const displayTitle = movie?.title || title || 'Untitled';
+  const displayGenres = movie?.genres?.length ? movie.genres.join(' • ') : '—';
+  const displayRating = typeof movie?.rating === 'number' ? movie.rating.toFixed(1) : null;
+  const displayYear = movie?.releaseYear || null;
+  const displayLanguage = movie?.language || null;
+  const displayDuration = (() => {
+    const mins = movie?.duration;
+    if (!mins) return null;
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  })();
+  const displayCast = movie?.cast?.length ? movie.cast : null;
+  const heroImage = movie?.poster || movie?.thumbnail || image;
+
+  const checkAuth = useCallback((actionDesc, successCallback) => {
+    if (!isAuthenticated) {
+      Alert.alert(
+        'Authentication Required',
+        `You need to register or login first to ${actionDesc}.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Login / Register',
+            onPress: () => router.replace('/(auth)/login'),
+          },
+        ]
+      );
+    } else {
+      successCallback();
+    }
+  }, [isAuthenticated]);
 
   const handleLike =
     useCallback(() => {
-      Alert.alert(
-        '❤️ Added to Favorites',
-        `${title} saved successfully!`
-      );
-    }, [title]);
+      checkAuth('add this movie to favorites', () => {
+        Alert.alert(
+          '❤️ Added to Favorites',
+          `${title} saved successfully!`
+        );
+      });
+    }, [title, checkAuth]);
 
   const handleShare =
     useCallback(async () => {
@@ -199,27 +235,76 @@ export default function MovieDetails() {
 
   const handleWatch =
     useCallback(() => {
-      Alert.alert(
-        '▶️ Playing Movie',
-        `${title} started successfully!`
-      );
-    }, [title]);
+      checkAuth('watch premium movies', () => {
+        if (!movie?.videoUrl) {
+          Alert.alert('Video Unavailable', 'This movie has no playable video yet.');
+          return;
+        }
+        openVideo({
+          id: movie._id,
+          videoUrl: movie.videoUrl,
+          title: movie.title || title,
+          thumbnail: movie.thumbnail || movie.poster || image,
+          durationSeconds: (movie.duration || 0) * 60,
+          contentType: 'Movie',
+        });
+      });
+    }, [movie, title, image, checkAuth]);
+
+  const { startDownload, activeDownloads } = useDownloads();
 
   const handleDownload =
     useCallback(() => {
-      Alert.alert(
-        '⬇️ Download Started',
-        `${title} is downloading...`
-      );
-    }, [title]);
+      checkAuth('download movies', () => {
+        if (!movie?.videoUrl || movie.isDummy) {
+          Alert.alert('Cannot Download', 'This movie has no playable video.');
+          return;
+        }
+
+        if (Platform.OS === 'web') {
+          try {
+            const link = document.createElement('a');
+            link.href = movie.videoUrl;
+            link.setAttribute('download', `${movie.title || 'movie'}.mp4`);
+            link.setAttribute('target', '_blank');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          } catch (e) {
+            window.open(movie.videoUrl, '_blank');
+          }
+          return;
+        }
+
+        const variants = getQualityVariants(movie.videoUrl);
+        const bestQuality = variants[0] || { label: 'Auto', url: movie.videoUrl };
+        startDownload(
+          {
+            id: movie._id,
+            videoUrl: movie.videoUrl,
+            title: movie.title || title,
+            thumbnail: movie.thumbnail || movie.poster || image,
+            durationSeconds: (movie.duration || 0) * 60,
+            contentType: 'Movie',
+          },
+          bestQuality
+        ).then(() => {
+          Alert.alert('✓ Download Complete', `${title} saved to Downloads`);
+        }).catch((e) => {
+          Alert.alert('Download Failed', e?.message || 'Could not download video');
+        });
+      });
+    }, [movie, title, image, checkAuth, startDownload]);
 
   const handleAdd =
     useCallback(() => {
-      Alert.alert(
-        '➕ Added',
-        `${title} added to your watchlist!`
-      );
-    }, [title]);
+      checkAuth('add movies to your watchlist', () => {
+        Alert.alert(
+          '➕ Added',
+          `${title} added to your watchlist!`
+        );
+      });
+    }, [title, checkAuth]);
 
   return (
     <SafeAreaView
@@ -245,7 +330,7 @@ export default function MovieDetails() {
         <ImageBackground
           source={{
             uri:
-              image ||
+              heroImage ||
               'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?q=80&w=1400',
           }}
           style={styles.hero}
@@ -273,9 +358,13 @@ export default function MovieDetails() {
             <TouchableOpacity
               style={styles.glassBtn}
               activeOpacity={0.8}
-              onPress={() =>
-                router.back()
-              }
+              onPress={() => {
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace('/(tabs)/home');
+                }
+              }}
             >
               <Ionicons
                 name="arrow-back"
@@ -332,38 +421,38 @@ export default function MovieDetails() {
           <View
             style={styles.content}
           >
-            <View
-              style={styles.badge}
-            >
+            {(movie?.isTrending || movie?.isNewRelease) && (
               <View
-                style={
-                  styles.liveDot
-                }
-              />
-
-              <Text
-                style={
-                  styles.badgeText
-                }
+                style={styles.badge}
               >
-                TRENDING #1 MOVIE
-              </Text>
-            </View>
+                <View
+                  style={
+                    styles.liveDot
+                  }
+                />
+
+                <Text
+                  style={
+                    styles.badgeText
+                  }
+                >
+                  {movie?.isTrending ? 'TRENDING NOW' : 'NEW RELEASE'}
+                </Text>
+              </View>
+            )}
 
             {/* DYNAMIC TITLE */}
 
             <Text
               style={styles.title}
             >
-              {title ||
-                'Stellar Drift'}
+              {displayTitle}
             </Text>
 
             <Text
               style={styles.genre}
             >
-              Sci-Fi • Adventure •
-              Mystery
+              {displayGenres}
             </Text>
 
             {/* STATS */}
@@ -373,65 +462,33 @@ export default function MovieDetails() {
                 styles.statsRow
               }
             >
-              <View
-                style={
-                  styles.statCard
-                }
-              >
-                <Ionicons
-                  name="star"
-                  size={16}
-                  color="#FFD700"
-                />
+              {displayRating && (
+                <View style={styles.statCard}>
+                  <Ionicons name="star" size={16} color="#FFD700" />
+                  <Text style={styles.statText}>{displayRating}</Text>
+                </View>
+              )}
 
-                <Text
-                  style={
-                    styles.statText
-                  }
-                >
-                  4.9 IMDb
-                </Text>
-              </View>
+              {displayDuration && (
+                <View style={styles.statCard}>
+                  <Ionicons name="time-outline" size={16} color="#60A5FA" />
+                  <Text style={styles.statText}>{displayDuration}</Text>
+                </View>
+              )}
 
-              <View
-                style={
-                  styles.statCard
-                }
-              >
-                <Ionicons
-                  name="time-outline"
-                  size={16}
-                  color="#60A5FA"
-                />
+              {displayYear && (
+                <View style={styles.statCard}>
+                  <Ionicons name="calendar-outline" size={16} color="#34D399" />
+                  <Text style={styles.statText}>{displayYear}</Text>
+                </View>
+              )}
 
-                <Text
-                  style={
-                    styles.statText
-                  }
-                >
-                  2h 18m
-                </Text>
-              </View>
-
-              <View
-                style={
-                  styles.statCard
-                }
-              >
-                <Ionicons
-                  name="calendar-outline"
-                  size={16}
-                  color="#34D399"
-                />
-
-                <Text
-                  style={
-                    styles.statText
-                  }
-                >
-                  2026
-                </Text>
-              </View>
+              {displayLanguage && (
+                <View style={styles.statCard}>
+                  <Ionicons name="language-outline" size={16} color="#F472B6" />
+                  <Text style={styles.statText}>{displayLanguage}</Text>
+                </View>
+              )}
             </View>
 
             {/* DESCRIPTION */}
@@ -441,13 +498,7 @@ export default function MovieDetails() {
                 styles.description
               }
             >
-              A mysterious signal
-              from deep space sends
-              a fearless crew on a
-              dangerous mission
-              beyond the galaxy
-              where survival becomes
-              humanity's final hope.
+              {movie?.description || 'No description available for this title yet.'}
             </Text>
 
             {/* BUTTONS */}
@@ -540,86 +591,90 @@ export default function MovieDetails() {
           </View>
         </ImageBackground>
 
-        {/* CAST */}
+        {/* CAST — real data from the movie */}
 
-        <View style={styles.section}>
-          <View
-            style={
-              styles.sectionHeader
-            }
-          >
+        {displayCast && (
+          <View style={styles.section}>
+            <View
+              style={
+                styles.sectionHeader
+              }
+            >
+              <Text
+                style={
+                  styles.sectionTitle
+                }
+              >
+                Top Cast
+              </Text>
+            </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={
+                false
+              }
+            >
+              {displayCast.map((item, idx) => (
+                <CastCard
+                  key={idx}
+                  item={{
+                    id: idx,
+                    name: item.character ? `${item.name}` : item.name,
+                    character: item.character,
+                    image: item.image || 'https://i.pravatar.cc/150?u=' + encodeURIComponent(item.name),
+                  }}
+                />
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* TRAILER */}
+
+        {movie?.trailerUrl && (
+          <View style={styles.section}>
             <Text
               style={
                 styles.sectionTitle
               }
             >
-              Top Cast
+              Trailer Preview
             </Text>
 
-            <Text
-              style={styles.seeAll}
+            <ImageBackground
+              source={{
+                uri: movie.thumbnail || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1200',
+              }}
+              style={styles.trailer}
+              imageStyle={
+                styles.trailerRadius
+              }
             >
-              See all
-            </Text>
-          </View>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={
-              false
-            }
-          >
-            {cast.map((item) => (
-              <CastCard
-                key={item.id}
-                item={item}
+              <LinearGradient
+                colors={[
+                  'transparent',
+                  'rgba(0,0,0,0.95)',
+                ]}
+                style={
+                  styles.trailerOverlay
+                }
               />
-            ))}
-          </ScrollView>
-        </View>
 
-        {/* TRAILER */}
-
-        <View style={styles.section}>
-          <Text
-            style={
-              styles.sectionTitle
-            }
-          >
-            Trailer Preview
-          </Text>
-
-          <ImageBackground
-            source={{
-              uri:
-                'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1200',
-            }}
-            style={styles.trailer}
-            imageStyle={
-              styles.trailerRadius
-            }
-          >
-            <LinearGradient
-              colors={[
-                'transparent',
-                'rgba(0,0,0,0.95)',
-              ]}
-              style={
-                styles.trailerOverlay
-              }
-            />
-
-            <TouchableOpacity
-              style={
-                styles.playCircle
-              }
-              activeOpacity={0.8}
-              onPress={() =>
-                Alert.alert(
-                  '🎞 Trailer Playing'
-                )
-              }
-            >
+              <TouchableOpacity
+                style={
+                  styles.playCircle
+                }
+                activeOpacity={0.8}
+                onPress={() => openVideo({
+                  id: movie._id,
+                  videoUrl: movie.trailerUrl,
+                  title: `${movie.title} - Trailer`,
+                  thumbnail: movie.thumbnail,
+                  durationSeconds: 180,
+                  contentType: 'Movie',
+                })}
+              >
               <LinearGradient
                 colors={[
                   '#fff',
@@ -660,46 +715,48 @@ export default function MovieDetails() {
             </View>
           </ImageBackground>
         </View>
+        )}
 
-        {/* MORE MOVIES */}
+        {/* MORE MOVIES — real related content */}
 
-        <View style={styles.section}>
-          <View
-            style={
-              styles.sectionHeader
-            }
-          >
-            <Text
+        {related.length > 0 && (
+          <View style={styles.section}>
+            <View
               style={
-                styles.sectionTitle
+                styles.sectionHeader
               }
             >
-              More Like This
-            </Text>
+              <Text
+                style={
+                  styles.sectionTitle
+                }
+              >
+                More Like This
+              </Text>
+            </View>
 
-            <Text
-              style={styles.seeAll}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={
+                false
+              }
             >
-              Browse
-            </Text>
+              {related.map(
+                (item) => (
+                  <MoreMovieCard
+                    key={item._id}
+                    item={{
+                      id: item._id,
+                      title: item.title,
+                      genre: (item.genres || [])[0] || 'Movie',
+                      image: item.thumbnail || item.poster || 'https://picsum.photos/400/600',
+                    }}
+                  />
+                )
+              )}
+            </ScrollView>
           </View>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={
-              false
-            }
-          >
-            {moreMovies.map(
-              (item) => (
-                <MoreMovieCard
-                  key={item.id}
-                  item={item}
-                />
-              )
-            )}
-          </ScrollView>
-        </View>
+        )}
 
         <View
           style={{ height: 40 }}
@@ -930,6 +987,16 @@ const styles = StyleSheet.create({
     color: '#E2E8F0',
     fontSize: 12,
     fontWeight: '600',
+    maxWidth: 84,
+    textAlign: 'center',
+  },
+
+  castCharacter: {
+    color: '#64748B',
+    fontSize: 11,
+    marginTop: 2,
+    maxWidth: 84,
+    textAlign: 'center',
   },
 
   trailer: {

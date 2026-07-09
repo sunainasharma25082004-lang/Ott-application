@@ -1,7 +1,4 @@
-// ✅ FULL FIXED PREMIUM PROFILE SCREEN
-// app/ChooseProfile.tsx
-
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 
 import {
   View,
@@ -14,6 +11,10 @@ import {
   Dimensions,
   Platform,
   ScrollView,
+  Modal,
+  TextInput,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -34,56 +35,142 @@ const { width } = Dimensions.get('window');
 
 const PROFILE_SIZE = width * 0.22;
 
+const AVATAR_OPTIONS = [
+  'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=400',
+  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=400',
+  'https://images.unsplash.com/photo-1503023345310-bd7c1de61c7d?q=80&w=400',
+  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=400',
+  'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=400',
+  'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=400',
+  'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=400',
+  'https://images.unsplash.com/photo-1527980965255-d3b416303d12?q=80&w=400',
+];
+
 export default function ChooseProfile() {
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading, selectProfile } = useAuth();
 
-  // Start with fallback profiles so we never render with empty data
-  const [profiles, setProfiles] = useState([
-    { id: 'demo1', name: 'Alex', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=1200' },
-    { id: 'demo2', name: 'Sarah', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=1200' },
-    { id: 'demo3', name: 'Kids', image: 'https://images.unsplash.com/photo-1503023345310-bd7c1de61c7d?q=80&w=1200' },
-  ]);
-  const [loading, setLoading] = useState(false); // not currently used in UI, but ready if you want a loader later
+  const [profiles, setProfiles] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newProfileName, setNewProfileName] = useState('');
+  const [selectedAvatar, setSelectedAvatar] = useState(AVATAR_OPTIONS[0]);
+  const [isKids, setIsKids] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  // Protect this screen: if not authenticated (after auth check finished), go back to login
+  // Only logged-in users can access profile selection
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.replace('/(auth)/login');
     }
   }, [authLoading, isAuthenticated]);
 
-  useEffect(() => {
-    const loadProfiles = async () => {
-      try {
-        const res = await apiClient.get('/profiles');
-        if (res?.profiles && res.profiles.length > 0) {
-          const mapped = res.profiles.map(p => ({
-            id: p._id || p.id,
-            name: p.name,
-            image: p.avatar || p.image || 'https://i.pravatar.cc/300',
-          }));
-          setProfiles(mapped);
-        }
-        // If no profiles from backend, we keep the demo ones (already in state)
-      } catch (e) {
-        // Keep demo profiles on error (no backend, not logged in, etc.)
-        console.log('Using demo profiles (backend not available or no profiles yet)');
+  const loadProfiles = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await apiClient.get('/profiles');
+      if (res?.profiles) {
+        const mapped = res.profiles.map(p => ({
+          id: p._id || p.id,
+          name: p.name,
+          image: p.avatar || p.image || 'https://i.pravatar.cc/300',
+          isKids: p.isKids,
+        }));
+        setProfiles(mapped);
       }
-    };
-    loadProfiles();
+    } catch (e) {
+      console.log('Could not load profiles from backend:', e);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const openPlatform = () => {
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadProfiles();
+    }
+  }, [isAuthenticated, loadProfiles]);
+
+  const openPlatform = (profile) => {
+    if (profile && typeof selectProfile === 'function') {
+      selectProfile(profile);
+    }
     router.push('/ChoosePlatform');
   };
 
-  const renderProfile = ({ item }: any) => {
+  const handleAddProfile = async () => {
+    if (!newProfileName.trim()) {
+      const msg = 'Please enter a profile name';
+      if (Platform.OS === 'web') {
+        window.alert(msg);
+      } else {
+        Alert.alert('Error', msg);
+      }
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await apiClient.post('/profiles', {
+        name: newProfileName.trim(),
+        avatar: selectedAvatar,
+        isKids,
+      });
+
+      // Reset form and close modal
+      setNewProfileName('');
+      setSelectedAvatar(AVATAR_OPTIONS[0]);
+      setIsKids(false);
+      setShowAddModal(false);
+
+      // Reload profiles from database
+      await loadProfiles();
+    } catch (e) {
+      const msg = e?.message || 'Could not create profile. Max 5 profiles allowed.';
+      if (Platform.OS === 'web') {
+        window.alert(msg);
+      } else {
+        Alert.alert('Error', msg);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteProfile = (profileId, profileName) => {
+    const doDelete = async () => {
+      try {
+        await apiClient.delete(`/profiles/${profileId}`);
+        await loadProfiles();
+      } catch (e) {
+        const msg = 'Could not delete profile';
+        if (Platform.OS === 'web') {
+          window.alert(msg);
+        } else {
+          Alert.alert('Error', msg);
+        }
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Delete profile "${profileName}"?`)) {
+        doDelete();
+      }
+    } else {
+      Alert.alert('Delete Profile', `Are you sure you want to delete "${profileName}"?`, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: doDelete },
+      ]);
+    }
+  };
+
+  const renderProfile = ({ item }) => {
     if (!item) return null;
     return (
       <TouchableOpacity
         activeOpacity={0.88}
         style={styles.profileCard}
-        onPress={openPlatform}
+        onPress={() => openPlatform(item)}
+        onLongPress={() => handleDeleteProfile(item.id, item.name)}
       >
         <LinearGradient
           colors={[
@@ -100,13 +187,9 @@ export default function ChooseProfile() {
               style={styles.profileImage}
             />
 
-            {item.premium && (
-              <View style={styles.premiumBadge}>
-                <Ionicons
-                  name="diamond"
-                  size={10}
-                  color="#111"
-                />
+            {item.isKids && (
+              <View style={styles.kidsBadge}>
+                <Text style={styles.kidsBadgeText}>Kids</Text>
               </View>
             )}
           </View>
@@ -118,6 +201,18 @@ export default function ChooseProfile() {
       </TouchableOpacity>
     );
   };
+
+  // Show loading while fetching profiles
+  if (loading && profiles.length === 0) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#F7D49B" />
+          <Text style={{ color: '#9CA3AF', marginTop: 16 }}>Loading profiles...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -166,80 +261,94 @@ export default function ChooseProfile() {
             </Text>
           </View>
 
-          {/* MAIN PROFILE */}
+          {/* MAIN PROFILE (first one) */}
 
-          <TouchableOpacity
-            activeOpacity={0.92}
-            style={styles.mainProfileWrapper}
-            onPress={openPlatform}
-          >
-            <LinearGradient
-              colors={[
-                'rgba(255,255,255,0.10)',
-                'rgba(255,255,255,0.03)',
-              ]}
-              style={styles.mainProfileCard}
+          {profiles.length > 0 && (
+            <TouchableOpacity
+              activeOpacity={0.92}
+              style={styles.mainProfileWrapper}
+              onPress={() => openPlatform(profiles[0])}
             >
-              <Image
-                source={{
-                  uri: profiles[0]?.image || 'https://i.pravatar.cc/300',
-                }}
-                style={styles.mainProfileImage}
-              />
-
-              <Text style={styles.mainName}>
-                {profiles[0]?.name || 'User'}
-              </Text>
-
-              <TouchableOpacity
-                activeOpacity={0.9}
-                style={styles.continueBtn}
-                onPress={openPlatform}
+              <LinearGradient
+                colors={[
+                  'rgba(255,255,255,0.10)',
+                  'rgba(255,255,255,0.03)',
+                ]}
+                style={styles.mainProfileCard}
               >
-                <LinearGradient
-                  colors={[
-                    '#F7D49B',
-                    '#D9A45F',
-                  ]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={
-                    styles.continueGradient
-                  }
+                <Image
+                  source={{
+                    uri: profiles[0]?.image || 'https://i.pravatar.cc/300',
+                  }}
+                  style={styles.mainProfileImage}
+                />
+
+                <Text style={styles.mainName}>
+                  {profiles[0]?.name || 'User'}
+                </Text>
+
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={styles.continueBtn}
+                  onPress={() => openPlatform(profiles[0])}
                 >
-                  <Text
+                  <LinearGradient
+                    colors={[
+                      '#F7D49B',
+                      '#D9A45F',
+                    ]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
                     style={
-                      styles.continueText
+                      styles.continueGradient
                     }
                   >
-                    Continue
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </LinearGradient>
-          </TouchableOpacity>
+                    <Text
+                      style={
+                        styles.continueText
+                      }
+                    >
+                      Continue
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+
+          {/* NO PROFILES YET */}
+          {profiles.length === 0 && (
+            <View style={styles.emptyState}>
+              <Ionicons name="person-add-outline" size={48} color="#F7D49B" />
+              <Text style={styles.emptyText}>No profiles yet</Text>
+              <Text style={styles.emptySubtext}>Add a profile to get started</Text>
+            </View>
+          )}
 
           {/* OTHER PROFILES */}
 
-          <FlatList
-            data={profiles.length > 1 ? profiles.slice(1) : []}
-            keyExtractor={(item) => String(item?.id || Math.random())}
-            numColumns={2}
-            scrollEnabled={false}
-            contentContainerStyle={
-              styles.profileList
-            }
-            columnWrapperStyle={
-              styles.columnWrapper
-            }
-            renderItem={renderProfile}
-          />
+          {profiles.length > 1 && (
+            <FlatList
+              data={profiles.slice(1)}
+              keyExtractor={(item) => String(item?.id || Math.random())}
+              numColumns={2}
+              scrollEnabled={false}
+              contentContainerStyle={
+                styles.profileList
+              }
+              columnWrapperStyle={
+                styles.columnWrapper
+              }
+              renderItem={renderProfile}
+            />
+          )}
 
           {/* ADD PROFILE */}
 
           <TouchableOpacity
             activeOpacity={0.88}
             style={styles.addProfileCard}
+            onPress={() => setShowAddModal(true)}
           >
             <LinearGradient
               colors={[
@@ -294,6 +403,93 @@ export default function ChooseProfile() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* ADD PROFILE MODAL */}
+      <Modal
+        visible={showAddModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAddModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {/* Close Button */}
+            <TouchableOpacity
+              style={styles.modalClose}
+              onPress={() => setShowAddModal(false)}
+            >
+              <Ionicons name="close" size={24} color="#fff" />
+            </TouchableOpacity>
+
+            <Text style={styles.modalTitle}>Add New Profile</Text>
+            <Text style={styles.modalSubtitle}>Create a profile for another person watching</Text>
+
+            {/* Name Input */}
+            <TextInput
+              style={styles.nameInput}
+              placeholder="Profile Name"
+              placeholderTextColor="#666"
+              value={newProfileName}
+              onChangeText={setNewProfileName}
+              maxLength={20}
+            />
+
+            {/* Avatar Selection */}
+            <Text style={styles.avatarLabel}>Choose Avatar</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.avatarScroll}
+              contentContainerStyle={styles.avatarScrollContent}
+            >
+              {AVATAR_OPTIONS.map((avatarUri, index) => (
+                <TouchableOpacity
+                  key={index}
+                  onPress={() => setSelectedAvatar(avatarUri)}
+                  style={[
+                    styles.avatarOption,
+                    selectedAvatar === avatarUri && styles.avatarSelected,
+                  ]}
+                >
+                  <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {/* Kids Toggle */}
+            <TouchableOpacity
+              style={styles.kidsToggle}
+              onPress={() => setIsKids(!isKids)}
+            >
+              <View style={[styles.checkbox, isKids && styles.checkboxChecked]}>
+                {isKids && <Ionicons name="checkmark" size={16} color="#111" />}
+              </View>
+              <Text style={styles.kidsLabel}>Kids Profile</Text>
+            </TouchableOpacity>
+
+            {/* Save Button */}
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={styles.saveBtn}
+              onPress={handleAddProfile}
+              disabled={saving}
+            >
+              <LinearGradient
+                colors={['#F7D49B', '#D9A45F']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.saveGradient}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color="#111" />
+                ) : (
+                  <Text style={styles.saveText}>Create Profile</Text>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -368,6 +564,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 10,
     letterSpacing: 0.4,
+  },
+
+  /* EMPTY STATE */
+
+  emptyState: {
+    alignItems: 'center',
+    marginTop: 60,
+    marginBottom: 20,
+  },
+
+  emptyText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '700',
+    marginTop: 16,
+  },
+
+  emptySubtext: {
+    color: '#9CA3AF',
+    fontSize: 14,
+    marginTop: 8,
   },
 
   /* MAIN PROFILE */
@@ -457,18 +674,22 @@ const styles = StyleSheet.create({
     borderRadius: PROFILE_SIZE / 2,
   },
 
-  premiumBadge: {
+  kidsBadge: {
     position: 'absolute',
-    right: -2,
-    bottom: -2,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    right: -8,
+    bottom: -4,
     backgroundColor: '#F7D49B',
-    justifyContent: 'center',
-    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
     borderWidth: 2,
     borderColor: '#040611',
+  },
+
+  kidsBadgeText: {
+    color: '#111',
+    fontSize: 10,
+    fontWeight: '800',
   },
 
   profileName: {
@@ -537,5 +758,136 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     fontWeight: '700',
     fontSize: 13,
+  },
+
+  /* MODAL */
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+
+  modalContent: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#111827',
+    borderRadius: 28,
+    padding: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+
+  modalClose: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    zIndex: 10,
+    padding: 4,
+  },
+
+  modalTitle: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: '800',
+    marginBottom: 6,
+  },
+
+  modalSubtitle: {
+    color: '#9CA3AF',
+    fontSize: 13,
+    marginBottom: 24,
+  },
+
+  nameInput: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    color: '#fff',
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    marginBottom: 20,
+  },
+
+  avatarLabel: {
+    color: '#9CA3AF',
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+
+  avatarScroll: {
+    marginBottom: 20,
+  },
+
+  avatarScrollContent: {
+    gap: 10,
+  },
+
+  avatarOption: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+
+  avatarSelected: {
+    borderColor: '#F7D49B',
+  },
+
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+
+  kidsToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+
+  checkboxChecked: {
+    backgroundColor: '#F7D49B',
+    borderColor: '#F7D49B',
+  },
+
+  kidsLabel: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+
+  saveBtn: {
+    borderRadius: 18,
+    overflow: 'hidden',
+  },
+
+  saveGradient: {
+    paddingVertical: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  saveText: {
+    color: '#111',
+    fontSize: 15,
+    fontWeight: '800',
   },
 });

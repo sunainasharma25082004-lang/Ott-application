@@ -18,7 +18,11 @@ exports.getSeries = async (req, res, next) => {
 
 exports.getSeriesById = async (req, res, next) => {
   try {
-    const series = await Series.findById(req.params.id);
+    const series = await Series.findByIdAndUpdate(
+      req.params.id,
+      { $inc: { views: 1 } },
+      { new: true }
+    );
     if (!series) return errorResponse(res, "Series not found", 404);
 
     const episodes = await Episode.find({ series: series._id }).sort({
@@ -69,6 +73,53 @@ exports.createEpisode = async (req, res, next) => {
   try {
     const episode = await Episode.create(req.body);
     return successResponse(res, { episode }, "Episode created", 201);
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.updateSeries = async (req, res, next) => {
+  try {
+    const series = await Series.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+      runValidators: true,
+    });
+    if (!series) return errorResponse(res, "Series not found", 404);
+    return successResponse(res, { series }, "Series updated");
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.deleteSeries = async (req, res, next) => {
+  try {
+    const series = await Series.findByIdAndDelete(req.params.id);
+    if (!series) return errorResponse(res, "Series not found", 404);
+    await Episode.deleteMany({ series: req.params.id });
+    return successResponse(res, {}, "Series and its episodes deleted");
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.updateEpisode = async (req, res, next) => {
+  try {
+    const episode = await Episode.findByIdAndUpdate(req.params.episodeId, req.body, {
+      new: true,
+      runValidators: true,
+    });
+    if (!episode) return errorResponse(res, "Episode not found", 404);
+    return successResponse(res, { episode }, "Episode updated");
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.deleteEpisode = async (req, res, next) => {
+  try {
+    const episode = await Episode.findByIdAndDelete(req.params.episodeId);
+    if (!episode) return errorResponse(res, "Episode not found", 404);
+    return successResponse(res, {}, "Episode deleted");
   } catch (error) {
     next(error);
   }

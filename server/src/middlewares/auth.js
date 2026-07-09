@@ -20,7 +20,7 @@ const protect = async (req, res, next) => {
         return res.status(401).json({ success: false, message: "User not found" });
       }
 
-      next();
+      return next();
     } catch (error) {
       console.error("Auth error:", error.message);
       return res.status(401).json({
@@ -47,4 +47,20 @@ const adminOnly = (req, res, next) => {
   }
 };
 
-module.exports = { protect, adminOnly };
+const optionalAuth = async (req, res, next) => {
+  if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith("Bearer")
+  ) {
+    try {
+      const token = req.headers.authorization.split(" ")[1];
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      req.user = await User.findById(decoded.id).select("-password");
+    } catch (error) {
+      // Token invalid or expired — proceed without user
+    }
+  }
+  next();
+};
+
+module.exports = { protect, adminOnly, optionalAuth };

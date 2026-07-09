@@ -38,5 +38,7 @@ const watchHistorySchema = new mongoose.Schema(
 
 // For "Continue Watching" queries
 watchHistorySchema.index({ user: 1, lastWatchedAt: -1 });
+// Prevent duplicate entries per user+content
+watchHistorySchema.index({ user: 1, contentId: 1, contentType: 1 }, { unique: true });
 
 module.exports = mongoose.model("WatchHistory", watchHistorySchema);

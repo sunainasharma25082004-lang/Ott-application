@@ -8,8 +8,9 @@ const {
   deleteMovie,
 } = require("../controllers/movieController");
 const { protect, adminOnly } = require("../middlewares/auth");
+const { uploadMovieMedia } = require("../middlewares/upload");
 
-router.route("/").get(getMovies).post(protect, adminOnly, createMovie);
+router.route("/").get(getMovies).post(protect, adminOnly, uploadMovieMedia, createMovie);
 
 router
   .route("/:id")

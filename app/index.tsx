@@ -4,7 +4,7 @@ import { Redirect, useRouter } from 'expo-router';
 import { useAuth } from '../src/context/AuthContext';
 
 export default function Index() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const router = useRouter();
 
   // While we are restoring token / checking /me, show a nice loading screen
@@ -18,9 +18,12 @@ export default function Index() {
   }
 
   // Once we know the auth state, redirect accordingly.
-  // If logged in → send to ChooseProfile (the "Who's watching" screen)
+  // If logged in → send to Admin Dashboard if role is admin, else ChooseProfile
   // Else → auth login screen (which contains both Sign In + Register + OTP)
   if (isAuthenticated) {
+    if (user?.role === 'admin') {
+      return <Redirect href="/admin/dashboard" />;
+    }
     return <Redirect href="/ChooseProfile" />;
   }
 

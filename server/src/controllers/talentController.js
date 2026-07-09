@@ -1,4 +1,5 @@
 const Talent = require("../models/Talent");
+const Notification = require("../models/Notification");
 const { uploadToCloudinary } = require("../middlewares/upload");
 const { successResponse, errorResponse } = require("../utils/response");
 
@@ -31,7 +32,7 @@ exports.getLeaderboard = async (req, res, next) => {
     const leaderboard = await Talent.find({ status: { $in: ["approved", "featured"] } })
       .sort({ votes: -1 })
       .limit(20)
-      .select("name category votes thumbnail auditionVideo isFeatured");
+      .select("name category votes thumbnail auditionVideo duration isFeatured");
 
     return successResponse(res, { leaderboard });
   } catch (error) {
@@ -75,8 +76,21 @@ exports.submitTalent = async (req, res, next) => {
       location,
       thumbnail: thumbnailUrl,
       auditionVideo: videoUrl,
+      duration: videoResult.duration || undefined,
       status: "pending",
     });
+
+    // Notify the uploader that their video is under review (verified within 24h)
+    if (req.user?._id) {
+      await Notification.create({
+        user: req.user._id,
+        type: "talent_submitted",
+        title: "Video received — under review",
+        message: `Your "${talent.name}" video was uploaded successfully. Our team will verify it within 24 hours. You'll be notified once it's approved and live.`,
+        relatedId: talent._id,
+        relatedModel: "Talent",
+      });
+    }
 
     return successResponse(
       res,

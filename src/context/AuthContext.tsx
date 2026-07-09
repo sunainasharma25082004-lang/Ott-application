@@ -5,25 +5,46 @@ import React, {
   useEffect,
   ReactNode,
 } from 'react';
-import { apiClient, setAuthToken, clearAuthToken, fetchMe, logoutUser, getAuthToken } from '../lib/api';
+import {
+  apiClient,
+  setAuthToken,
+  clearAuthToken,
+  fetchMe,
+  logoutUser,
+  getAuthToken,
+  setSelectedProfileStorage,
+  getSelectedProfileStorage,
+  clearSelectedProfileStorage,
+} from '../lib/api';
 
 interface User {
   _id: string;
   name: string;
   email: string;
   avatar?: string;
+  phone?: string;
   role?: string;
   isVerified?: boolean;
+  createdAt?: string;
+}
+
+export interface Profile {
+  id: string;
+  name: string;
+  image: string;
+  isKids?: boolean;
 }
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  selectedProfile: Profile | null;
   signIn: (accessToken: string, userData?: User | null) => Promise<void>;
   signOut: () => Promise<void>;
   refreshAuth: () => Promise<boolean>;
   setUser: (user: User | null) => void;
+  selectProfile: (profile: Profile | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -44,6 +65,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
 
   // Called after successful login / OTP verify in the login screen
   const signIn = async (accessToken: string, userData?: User | null) => {
@@ -72,8 +94,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       await logoutUser();
     } finally {
       setUser(null);
+      setSelectedProfile(null);
+      await clearSelectedProfileStorage().catch(() => {});
       setIsAuthenticated(false);
     }
+  };
+
+  const selectProfile = (profile: Profile | null) => {
+    setSelectedProfile(profile);
+    setSelectedProfileStorage(profile).catch(() => {});
   };
 
   // Check if we have a stored token and validate it (lightweight /me call)
@@ -83,6 +112,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (!token) {
         setIsAuthenticated(false);
         setUser(null);
+        setSelectedProfile(null);
+        await clearSelectedProfileStorage().catch(() => {});
         return false;
       }
 
@@ -98,6 +129,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Token invalid or network issue while checking -> treat as logged out for safety
       await clearAuthToken();
       setUser(null);
+      setSelectedProfile(null);
+      await clearSelectedProfileStorage().catch(() => {});
       setIsAuthenticated(false);
       return false;
     }
@@ -111,6 +144,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsLoading(true);
       try {
         await refreshAuth();
+        const savedProfile = await getSelectedProfileStorage();
+        if (savedProfile && mounted) {
+          setSelectedProfile(savedProfile);
+        }
       } finally {
         if (mounted) setIsLoading(false);
       }
@@ -127,10 +164,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     user,
     isAuthenticated,
     isLoading,
+    selectedProfile,
     signIn,
     signOut,
     refreshAuth,
     setUser,
+    selectProfile,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

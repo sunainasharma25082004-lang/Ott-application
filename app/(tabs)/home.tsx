@@ -16,6 +16,7 @@ import {
   StatusBar,
   Platform,
   Pressable,
+  ActivityIndicator,
 } from "react-native";
 
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -28,6 +29,7 @@ import { Ionicons, Feather } from "@expo/vector-icons";
 
 import { categories } from "../../src/constants/movies";
 import { apiClient } from "../../src/lib/api";
+import { useAuth } from "../../src/context/AuthContext";
 
 const { width } = Dimensions.get("window");
 
@@ -101,13 +103,17 @@ const MovieCard = memo(({ item }: { item: MovieItem }) => {
 MovieCard.displayName = "MovieCard";
 
 export default function HomeScreen() {
+  const { user, isAuthenticated, selectedProfile } = useAuth();
   const [trendingMovies, setTrendingMovies] = React.useState<MovieItem[]>([]);
   const [moviesLoading, setMoviesLoading] = React.useState(true);
+  const [selectedCategory, setSelectedCategory] = React.useState('All');
+  const [categoryMovies, setCategoryMovies] = React.useState<MovieItem[]>([]);
+  const [categoryMoviesLoading, setCategoryMoviesLoading] = React.useState(false);
 
   React.useEffect(() => {
     const loadMovies = async () => {
       try {
-        const res: any = await apiClient.get("/movies?limit=8");
+        const res: any = await apiClient.get("/movies?trending=true&limit=10");
         const mapped = (res.movies || []).map((m: any) => ({
           id: m._id || m.id,
           title: m.title,
@@ -123,6 +129,28 @@ export default function HomeScreen() {
     };
     loadMovies();
   }, []);
+
+  React.useEffect(() => {
+    const loadCategoryMovies = async () => {
+      setCategoryMoviesLoading(true);
+      try {
+        const endpoint = selectedCategory === 'All' ? '/movies?limit=12' : `/movies?genre=${selectedCategory}&limit=12`;
+        const res: any = await apiClient.get(endpoint);
+        const mapped = (res.movies || []).map((m: any) => ({
+          id: m._id || m.id,
+          title: m.title,
+          image: m.thumbnail || m.poster || "https://picsum.photos/400/600",
+        }));
+        setCategoryMovies(mapped);
+      } catch (err) {
+        console.log("Error loading category movies:", err);
+        setCategoryMovies([]);
+      } finally {
+        setCategoryMoviesLoading(false);
+      }
+    };
+    loadCategoryMovies();
+  }, [selectedCategory]);
 
   const renderMovieCard = useCallback(
     ({ item }: { item: MovieItem }) => <MovieCard item={item} />,
@@ -158,20 +186,28 @@ export default function HomeScreen() {
         {/* HEADER */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.welcome}>Welcome Back</Text>
+            <Text style={styles.welcome}>
+              Welcome Back, {isAuthenticated ? (selectedProfile?.name || user?.name || "User") : "Guest"}
+            </Text>
 
             <Text style={styles.heading}>Stream Everywhere</Text>
           </View>
 
-          <TouchableOpacity activeOpacity={0.8}>
-            <ImageBackground
-              source={{
-                uri: "https://i.pravatar.cc/300",
-              }}
-              style={styles.profile}
-              imageStyle={styles.profileRadius}
-            />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <TouchableOpacity activeOpacity={0.8} onPress={() => router.push('/notifications')}>
+              <Ionicons name="notifications-outline" size={24} color="#fff" />
+            </TouchableOpacity>
+
+            <TouchableOpacity activeOpacity={0.8} onPress={() => router.push('/profile-details')}>
+              <ImageBackground
+                source={{
+                  uri: isAuthenticated ? (selectedProfile?.image || user?.avatar || "https://i.pravatar.cc/300") : "https://i.pravatar.cc/300",
+                }}
+                style={styles.profile}
+                imageStyle={styles.profileRadius}
+              />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* SEARCH */}
@@ -217,7 +253,15 @@ export default function HomeScreen() {
               <TouchableOpacity
                 activeOpacity={0.8}
                 style={styles.playBtn}
-                onPress={() => router.push("/movie-details")}
+                onPress={() => {
+                  const hero = trendingMovies[0];
+                  router.push({
+                    pathname: "/movie-details",
+                    params: hero
+                      ? { id: hero.id, title: hero.title, image: hero.image }
+                      : {},
+                  });
+                }}
               >
                 <Ionicons name="play" size={18} color="#000" />
 
@@ -241,25 +285,60 @@ export default function HomeScreen() {
           keyExtractor={(item) => item}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.categoriesContainer}
-          renderItem={({ item, index }) => (
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={[
-                styles.category,
-                index === 0 && styles.activeCategory,
-              ]}
-            >
-              <Text
+          renderItem={({ item }) => {
+            const isSelected = selectedCategory === item;
+            return (
+              <TouchableOpacity
+                activeOpacity={0.8}
                 style={[
-                  styles.categoryText,
-                  index === 0 && styles.activeCategoryText,
+                  styles.category,
+                  isSelected && styles.activeCategory,
                 ]}
+                onPress={() => setSelectedCategory(item)}
               >
-                {item}
-              </Text>
-            </TouchableOpacity>
-          )}
+                <Text
+                  style={[
+                    styles.categoryText,
+                    isSelected && styles.activeCategoryText,
+                  ]}
+                >
+                  {item}
+                </Text>
+              </TouchableOpacity>
+            );
+          }}
         />
+
+        {/* CATEGORY MOVIES SECTION */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            {selectedCategory === 'All' ? 'All Movies' : `${selectedCategory} Movies`}
+          </Text>
+          <Text style={styles.seeAll}>See All</Text>
+        </View>
+
+        {categoryMoviesLoading ? (
+          <View style={{ paddingVertical: 30, alignItems: 'center', justifyContent: 'center' }}>
+            <ActivityIndicator size="small" color="#FFB800" />
+          </View>
+        ) : categoryMovies.length === 0 ? (
+          <View style={{ paddingLeft: 20, paddingTop: 10 }}>
+            <Text style={{ color: '#6B7280', fontSize: 13 }}>No movies found in this category.</Text>
+          </View>
+        ) : (
+          <FlatList
+            horizontal
+            data={categoryMovies}
+            renderItem={renderMovieCard}
+            keyExtractor={keyExtractor}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.moviesList}
+            initialNumToRender={4}
+            maxToRenderPerBatch={6}
+            windowSize={5}
+            removeClippedSubviews
+          />
+        )}
 
         {/* TRENDING */}
         <View style={styles.section}>

@@ -1,4 +1,4 @@
-// app/talent-form.tsx
+// app/talentform.jsx
 
 import React, { useState } from "react";
 import {
@@ -11,30 +11,49 @@ import {
   StatusBar,
   Image,
   Alert,
+  Platform,
+  ActivityIndicator,
 } from "react-native";
 
 import * as ImagePicker from "expo-image-picker";
 
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
+
+import { apiClient } from "../src/lib/api";
+import { useAuth } from "../src/context/AuthContext";
+import {
+  TALENT_CATEGORIES,
+  UPLOAD_GUIDELINES,
+} from "../src/constants/uploadGuidelines";
+
+// Cross-platform alert helper
+const notify = (title, message) => {
+  if (Platform.OS === "web") window.alert(`${title}\n\n${message}`);
+  else Alert.alert(title, message);
+};
 
 export default function talentForm() {
+  const { isAuthenticated } = useAuth();
+
   const [fullName, setFullName] = useState("");
   const [age, setAge] = useState("");
   const [city, setCity] = useState("");
   const [phone, setPhone] = useState("");
   const [instagram, setInstagram] = useState("");
-  const [talent, setTalent] = useState("");
+  const [category, setCategory] = useState("Actor");
   const [about, setAbout] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const [video, setVideo] = useState(null);
+
   // PICK VIDEO
   const pickVideo = async () => {
-    const permission =
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (!permission.granted) {
-      Alert.alert("Permission Required", "Please allow gallery access.");
+      notify("Permission Required", "Please allow gallery access.");
       return;
     }
 
@@ -48,36 +67,70 @@ export default function talentForm() {
     }
   };
 
+  // Build the video part of the FormData (web vs native differ)
+  const appendVideo = async (formData) => {
+    const filename = video.fileName || `audition-${category}.mp4`;
+    const mimeType = video.mimeType || "video/mp4";
+
+    if (Platform.OS === "web") {
+      // On web the picked uri is a blob: URL — fetch it into a real Blob/File
+      const resp = await fetch(video.uri);
+      const blob = await resp.blob();
+      formData.append("auditionVideo", blob, filename);
+    } else {
+      formData.append("auditionVideo", {
+        uri: video.uri,
+        name: filename,
+        type: mimeType,
+      });
+    }
+  };
+
   // SUBMIT
-  const handleSubmit = () => {
-    if (
-      !fullName ||
-      !age ||
-      !city ||
-      !phone ||
-      !talent ||
-      !about ||
-      !video
-    ) {
-      Alert.alert("Missing Info", "Please fill all details.");
+  const handleSubmit = async () => {
+    if (!isAuthenticated) {
+      notify("Login Required", "Please login or register before uploading.");
+      router.replace("/(auth)/login");
       return;
     }
 
-    Alert.alert(
-      "Talent Submitted 🎉",
-      "Your profile & video uploaded successfully."
-    );
+    if (!fullName || !age || !city || !phone || !category || !about || !video) {
+      notify("Missing Info", "Please fill all details and select a video.");
+      return;
+    }
 
-    console.log({
-      fullName,
-      age,
-      city,
-      phone,
-      instagram,
-      talent,
-      about,
-      video,
-    });
+    setSubmitting(true);
+    try {
+      // Fold extra contact/profile info into bio (backend Talent model has no
+      // dedicated age/phone/instagram fields). Keep within the 500-char limit.
+      const bioExtras = [
+        `Age: ${age}`,
+        `Phone: ${phone}`,
+        instagram ? `Instagram: ${instagram}` : null,
+      ]
+        .filter(Boolean)
+        .join(" • ");
+      const bio = `${about}\n\n${bioExtras}`.slice(0, 500);
+
+      const formData = new FormData();
+      formData.append("name", fullName.trim());
+      formData.append("category", category);
+      formData.append("location", city.trim());
+      formData.append("bio", bio);
+      await appendVideo(formData);
+
+      await apiClient.post("/talent", formData);
+
+      notify(
+        "Video Uploaded 🎉",
+        "Our team will verify your video within 24 hours. You'll be notified once it's approved and live on the app."
+      );
+      router.back();
+    } catch (e) {
+      notify("Upload Failed", e?.message || "Could not upload your video.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -96,6 +149,27 @@ export default function talentForm() {
           <Text style={styles.subHeading}>
             Get a chance to appear in movies, dramas & web series.
           </Text>
+        </View>
+
+        {/* UPLOAD GUIDELINES */}
+
+        <View style={styles.guidelinesCard}>
+          <View style={styles.guidelinesHeaderRow}>
+            <Ionicons name="shield-checkmark-outline" size={20} color="#FFB800" />
+            <Text style={styles.guidelinesTitle}>Before you upload</Text>
+          </View>
+
+          {UPLOAD_GUIDELINES.map((rule, i) => (
+            <View key={i} style={styles.ruleRow}>
+              <Ionicons
+                name="checkmark-circle"
+                size={16}
+                color="#00C48C"
+                style={{ marginTop: 2 }}
+              />
+              <Text style={styles.ruleText}>{rule}</Text>
+            </View>
+          ))}
         </View>
 
         {/* FORM */}
@@ -173,18 +247,36 @@ export default function talentForm() {
             />
           </View>
 
-          {/* TALENT */}
+          {/* CATEGORY */}
 
           <View style={styles.inputBox}>
-            <Text style={styles.label}>Talent Type</Text>
+            <Text style={styles.label}>Talent Category</Text>
 
-            <TextInput
-              placeholder="Acting / Dancing / Singing"
-              placeholderTextColor="#777"
-              value={talent}
-              onChangeText={setTalent}
-              style={styles.input}
-            />
+            <View style={styles.categoryContainer}>
+              {TALENT_CATEGORIES.map((cat) => {
+                const isSelected = category === cat;
+                return (
+                  <TouchableOpacity
+                    key={cat}
+                    activeOpacity={0.85}
+                    style={[
+                      styles.categoryTag,
+                      isSelected && styles.categoryTagActive,
+                    ]}
+                    onPress={() => setCategory(cat)}
+                  >
+                    <Text
+                      style={[
+                        styles.categoryText,
+                        isSelected && styles.categoryTextActive,
+                      ]}
+                    >
+                      {cat}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
 
           {/* ABOUT */}
@@ -209,21 +301,13 @@ export default function talentForm() {
             style={styles.uploadCard}
             onPress={pickVideo}
           >
-            <Ionicons
-              name="cloud-upload-outline"
-              size={34}
-              color="#fff"
-            />
+            <Ionicons name="cloud-upload-outline" size={34} color="#fff" />
 
             <Text style={styles.uploadText}>
-              {video
-                ? "Video Selected Successfully"
-                : "Upload Audition Video"}
+              {video ? "Video Selected Successfully" : "Upload Audition Video"}
             </Text>
 
-            <Text style={styles.uploadSubText}>
-              MP4 / MOV / Reel Video
-            </Text>
+            <Text style={styles.uploadSubText}>MP4 / MOV / Reel Video</Text>
           </TouchableOpacity>
 
           {/* VIDEO PREVIEW */}
@@ -232,8 +316,7 @@ export default function talentForm() {
             <View style={styles.previewBox}>
               <Image
                 source={{
-                  uri:
-                    "https://cdn-icons-png.flaticon.com/512/727/727245.png",
+                  uri: "https://cdn-icons-png.flaticon.com/512/727/727245.png",
                 }}
                 style={styles.videoIcon}
               />
@@ -248,10 +331,15 @@ export default function talentForm() {
 
           <TouchableOpacity
             activeOpacity={0.9}
-            style={styles.submitButton}
+            style={[styles.submitButton, submitting && { opacity: 0.7 }]}
             onPress={handleSubmit}
+            disabled={submitting}
           >
-            <Text style={styles.submitText}>Submit Talent</Text>
+            {submitting ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.submitText}>Submit Talent</Text>
+            )}
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -272,7 +360,7 @@ const styles = StyleSheet.create({
 
   header: {
     marginTop: 10,
-    marginBottom: 24,
+    marginBottom: 20,
   },
 
   heading: {
@@ -286,6 +374,41 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 10,
     lineHeight: 22,
+  },
+
+  guidelinesCard: {
+    backgroundColor: "rgba(255,184,0,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,184,0,0.2)",
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 24,
+  },
+
+  guidelinesHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+
+  guidelinesTitle: {
+    color: "#FFB800",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+
+  ruleRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 8,
+  },
+
+  ruleText: {
+    color: "#C4CAD4",
+    fontSize: 13,
+    lineHeight: 19,
+    flex: 1,
   },
 
   formContainer: {
@@ -315,6 +438,36 @@ const styles = StyleSheet.create({
   textArea: {
     height: 120,
     textAlignVertical: "top",
+  },
+
+  categoryContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+
+  categoryTag: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+
+  categoryTagActive: {
+    backgroundColor: "rgba(37,99,235,0.2)",
+    borderColor: "#2563EB",
+  },
+
+  categoryText: {
+    color: "#8B93A1",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+
+  categoryTextActive: {
+    color: "#fff",
   },
 
   uploadCard: {
@@ -374,4 +527,4 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "700",
   },
-}); 
+});

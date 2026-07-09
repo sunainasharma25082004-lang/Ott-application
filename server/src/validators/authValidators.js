@@ -81,9 +81,16 @@ const resendOtpValidator = [
     }),
 ];
 
+const themeValidator = [
+  body("theme")
+    .isIn(["light", "dark"])
+    .withMessage("Theme must be light or dark"),
+];
+
 module.exports = {
   registerValidator,
   loginValidator,
   otpValidator,
   resendOtpValidator,
+  themeValidator,
 };

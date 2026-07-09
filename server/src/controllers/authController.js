@@ -1,5 +1,6 @@
 const User = require("../models/User");
 const Profile = require("../models/Profile");
+const LoginLog = require("../models/LoginLog");
 const { generateAccessToken, generateRefreshToken } = require("../utils/generateToken");
 const { sendOTPEmail } = require("../utils/sendEmail");
 const { successResponse, errorResponse } = require("../utils/response");
@@ -66,6 +67,24 @@ exports.register = async (req, res, next) => {
   }
 };
 
+// Helper to log login attempts asynchronously and safely
+const recordLoginAttempt = async (req, email, status, user = null, reason = null) => {
+  try {
+    const ipAddress = req.headers["x-forwarded-for"] || req.socket.remoteAddress || req.ip || "unknown";
+    const userAgent = req.headers["user-agent"] || "unknown";
+    await LoginLog.create({
+      user: user ? user._id : null,
+      email: email.toLowerCase(),
+      status,
+      ipAddress,
+      userAgent,
+      reason,
+    });
+  } catch (err) {
+    console.error("❌ Failed to save login log to database:", err.message);
+  }
+};
+
 // @desc    Login user (production ready)
 // @route   POST /api/auth/login
 exports.login = async (req, res, next) => {
@@ -74,7 +93,13 @@ exports.login = async (req, res, next) => {
 
     const user = await User.findOne({ email: email.toLowerCase() }).select("+password");
 
-    if (!user || !(await user.comparePassword(password))) {
+    if (!user) {
+      await recordLoginAttempt(req, email, "failed", null, "Email not registered");
+      return errorResponse(res, "This email is not registered. Please register first.", 404);
+    }
+
+    if (!(await user.comparePassword(password))) {
+      await recordLoginAttempt(req, email, "failed", user, "Invalid password");
       return errorResponse(res, "Invalid email or password", 401);
     }
 
@@ -97,6 +122,8 @@ exports.login = async (req, res, next) => {
         verifyPayload.devOtp = otp;
       }
 
+      await recordLoginAttempt(req, email, "otp_required", user, "Account verification required (unverified status)");
+
       return successResponse(res, verifyPayload, "Account not verified. A new OTP has been sent to your email.");
     }
 
@@ -108,6 +135,8 @@ exports.login = async (req, res, next) => {
     user.refreshToken = refreshToken;
     await user.save({ validateBeforeSave: false });
 
+    await recordLoginAttempt(req, email, "success", user, "Login successful");
+
     return successResponse(res, {
       accessToken,
       refreshToken,
@@ -118,6 +147,7 @@ exports.login = async (req, res, next) => {
         avatar: user.avatar,
         role: user.role,
         isVerified: user.isVerified,
+        theme: user.theme,
       },
     }, "Login successful");
   } catch (error) {
@@ -178,6 +208,7 @@ exports.verifyOTP = async (req, res, next) => {
         email: user.email,
         avatar: user.avatar,
         role: user.role,
+        theme: user.theme,
       },
     }, "Account verified successfully. You are now logged in.");
   } catch (error) {
@@ -273,6 +304,7 @@ exports.getMe = async (req, res, next) => {
         phone: user.phone,
         role: user.role,
         isVerified: user.isVerified,
+        theme: user.theme,
         createdAt: user.createdAt,
       },
     });
@@ -289,6 +321,22 @@ exports.logout = async (req, res, next) => {
       await User.findByIdAndUpdate(req.user._id, { $unset: { refreshToken: 1 } });
     }
     return successResponse(res, {}, "Logged out successfully");
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update user theme preference
+// @route   PUT /api/auth/theme
+exports.updateTheme = async (req, res, next) => {
+  try {
+    const { theme } = req.body;
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { theme },
+      { new: true, runValidators: true }
+    );
+    return successResponse(res, { theme: user.theme }, "Theme preference updated");
   } catch (error) {
     next(error);
   }

@@ -1,5 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import { getNetworkState } from '../utils/networkState';
 
 // Cross-platform secure storage
 // expo-secure-store does NOT work properly on web (causes "setValuewithAsync is not a function")
@@ -36,14 +37,27 @@ if (isWeb) {
 // ====================== API BASE URL CONFIG ======================
 // This is logged on app start so you can see exactly what URL the app is using.
 const getBaseUrl = () => {
-  // For physical device on same WiFi, change this manually to your PC's IP.
+  // Override for --tunnel mode (or physical device / real backend URL).
+  // 10.0.2.2 and 127.0.0.1 are LOOPBACK addresses — they only work when the
+  // Android emulator or app is running on the SAME machine as the backend,
+  // reached directly (no tunnel). `expo start --tunnel` exposes the APP
+  // bundle over ngrok, but does NOT expose your backend on port 5000 — so
+  // 10.0.2.2/127.0.0.1 will never be reachable through the tunnel.
+  // Set EXPO_PUBLIC_API_URL in a root .env file to fix this, e.g.:
+  //   EXPO_PUBLIC_API_URL=http://192.168.1.5:5000/api   (same-WiFi LAN IP)
+  //   EXPO_PUBLIC_API_URL=https://your-ngrok-id.ngrok-free.app/api  (backend also tunneled)
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
+  }
+
+  // For physical device on same WiFi (no tunnel), change this manually to your PC's IP.
   // Run `ipconfig` in PowerShell on Windows to find your IPv4 address.
   if (Platform.OS === 'android') {
-    // Android Emulator -> host machine
+    // Android Emulator -> host machine (only works WITHOUT --tunnel)
     return 'http://10.0.2.2:5000/api';
   }
-  // iOS Simulator / Web / Expo Go on same machine
-  return 'http://localhost:5000/api';
+  // iOS Simulator / Web / Expo Go on same machine (only works WITHOUT --tunnel)
+  return 'http://127.0.0.1:5000/api';
 };
 
 const API_BASE_URL = getBaseUrl();
@@ -51,7 +65,11 @@ const API_BASE_URL = getBaseUrl();
 console.log(`[API] ========================================`);
 console.log(`[API] Using base URL: ${API_BASE_URL}`);
 console.log(`[API] Platform detected: ${Platform.OS}`);
-console.log(`[API] >>> ANDROID EMULATOR USERS (Windows): 10.0.2.2 sahi hai`);
+if (!process.env.EXPO_PUBLIC_API_URL) {
+  console.log(`[API] >>> Running with --tunnel? 10.0.2.2/127.0.0.1 will NOT work through the tunnel.`);
+  console.log(`[API] >>> Set EXPO_PUBLIC_API_URL in a root .env file to your PC's LAN IP or a tunneled backend URL, then restart Expo.`);
+}
+console.log(`[API] >>> ANDROID EMULATOR USERS (Windows): 10.0.2.2 sahi hai (only WITHOUT --tunnel)`);
 console.log(`[API]     Backend start karne ke baad emulator ke browser mein ye test karo:`);
 console.log(`[API]     ${API_BASE_URL.replace('/api', '')}/api/ping`);
 console.log(`[API]     ${API_BASE_URL.replace('/api', '')}/api/status`);
@@ -98,13 +116,23 @@ async function request<T = any>(
   endpoint: string,
   data?: any
 ): Promise<T> {
+  const { isOnline } = getNetworkState();
+  const isAuthEndpoint = endpoint.includes('/auth/');
+  if (!isOnline && !isAuthEndpoint) {
+    throw new Error('You are offline. Check your network connection.');
+  }
+
   const token = await getAuthToken();
 
   const url = `${API_BASE_URL}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
+  const isFormData = typeof FormData !== 'undefined' && data instanceof FormData;
+
+  const headers: Record<string, string> = {};
+  // For multipart uploads, let fetch set the Content-Type (incl. boundary) itself
+  if (!isFormData) {
+    headers['Content-Type'] = 'application/json';
+  }
 
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
@@ -116,7 +144,7 @@ async function request<T = any>(
   };
 
   if (data && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
-    config.body = JSON.stringify(data);
+    config.body = isFormData ? data : JSON.stringify(data);
   }
 
   try {
@@ -210,6 +238,30 @@ export const logoutUser = async () => {
   } finally {
     await clearAuthToken();
   }
+};
+
+// ====================== SELECTED PROFILE PERSISTENCE ======================
+const PROFILE_KEY = 'selected_profile';
+
+export const setSelectedProfileStorage = async (profile: any) => {
+  if (profile) {
+    await secureStorage.setItemAsync(PROFILE_KEY, JSON.stringify(profile));
+  } else {
+    await secureStorage.deleteItemAsync(PROFILE_KEY);
+  }
+};
+
+export const getSelectedProfileStorage = async (): Promise<any | null> => {
+  try {
+    const val = await secureStorage.getItemAsync(PROFILE_KEY);
+    return val ? JSON.parse(val) : null;
+  } catch {
+    return null;
+  }
+};
+
+export const clearSelectedProfileStorage = async () => {
+  await secureStorage.deleteItemAsync(PROFILE_KEY);
 };
 
 export default apiClient;
