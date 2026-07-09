@@ -25,7 +25,7 @@
     "expo-linking": "~8.0.12",
     "expo-router": "~6.0.23",
     "expo-screen-orientation": "~9.0.9",
-    "expo-secure-store": "^56.0.4",
+    "expo-secure-store": "~15.0.8",
     "expo-status-bar": "~3.0.9",
     "expo-video": "~3.0.16",
     "openai": "^6.45.0",
