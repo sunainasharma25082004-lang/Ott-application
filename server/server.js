@@ -45,9 +45,20 @@ const corsOrigin = process.env.CORS_ORIGIN || "*";
 const isDev = process.env.NODE_ENV !== "production";
 app.use(
   cors({
-    // In dev allow everything (including RN emulator requests that may send no/ null Origin).
-    // In prod use the explicit list from .env
-    origin: isDev ? true : (corsOrigin.includes(",") ? corsOrigin.split(",") : corsOrigin),
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      const allowedOrigins = corsOrigin.includes(",") ? corsOrigin.split(",") : [corsOrigin];
+      if (
+        corsOrigin === "*" || 
+        allowedOrigins.includes(origin) || 
+        origin.includes("localhost") || 
+        origin.includes("127.0.0.1") || 
+        origin.includes("onrender.com")
+      ) {
+        return callback(null, true);
+      }
+      callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   })
