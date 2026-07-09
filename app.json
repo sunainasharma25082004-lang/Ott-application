@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -38,11 +38,16 @@
           }
         }
       ],
-      "expo-video"
+      "expo-video",
+      "expo-secure-store",
+      "expo-font"
     ],
     "extra": {
       "router": {
         "origin": false
+      },
+      "eas": {
+        "projectId": "acb323f5-521f-48ca-a183-32b785331387"
       }
     }
   }
