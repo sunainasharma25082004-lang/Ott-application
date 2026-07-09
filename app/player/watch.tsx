@@ -91,11 +91,18 @@ export default function WatchScreen() {
   }, [qualityVariants, pickingQuality]);
 
   // ── Player ───────────────────────────────────────────────────────────────
-
   const player = useVideoPlayer(sourceUrl, (p) => {
     p.play();
     p.muted = false;
   });
+
+  // Sync sourceUrl changes to the player (required for initial quality and param resolution)
+  useEffect(() => {
+    if (sourceUrl) {
+      player.replace(sourceUrl);
+      player.play();
+    }
+  }, [sourceUrl, player]);
 
   // Seamless quality switch
   useEffect(() => {
