@@ -37,27 +37,12 @@ if (isWeb) {
 // ====================== API BASE URL CONFIG ======================
 // This is logged on app start so you can see exactly what URL the app is using.
 const getBaseUrl = () => {
-  // Override for --tunnel mode (or physical device / real backend URL).
-  // 10.0.2.2 and 127.0.0.1 are LOOPBACK addresses — they only work when the
-  // Android emulator or app is running on the SAME machine as the backend,
-  // reached directly (no tunnel). `expo start --tunnel` exposes the APP
-  // bundle over ngrok, but does NOT expose your backend on port 5000 — so
-  // 10.0.2.2/127.0.0.1 will never be reachable through the tunnel.
-  // Set EXPO_PUBLIC_API_URL in a root .env file to fix this, e.g.:
-  //   EXPO_PUBLIC_API_URL=http://192.168.1.5:5000/api   (same-WiFi LAN IP)
-  //   EXPO_PUBLIC_API_URL=https://your-ngrok-id.ngrok-free.app/api  (backend also tunneled)
   if (process.env.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL;
   }
-
-  // For physical device on same WiFi (no tunnel), change this manually to your PC's IP.
-  // Run `ipconfig` in PowerShell on Windows to find your IPv4 address.
-  if (Platform.OS === 'android') {
-    // Android Emulator -> host machine (only works WITHOUT --tunnel)
-    return 'http://10.0.2.2:5000/api';
-  }
-  // iOS Simulator / Web / Expo Go on same machine (only works WITHOUT --tunnel)
-  return 'http://127.0.0.1:5000/api';
+  
+  // Default to live production Render backend so builds work out-of-the-box
+  return 'https://talent-hunt-backend-ek9p.onrender.com/api';
 };
 
 const API_BASE_URL = getBaseUrl();
