@@ -50,3 +50,6 @@ server/uploads/
 # generated native folders
 /ios
 /android
+
+# Local MongoDB database logs and journal files
+db_data/
