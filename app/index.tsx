@@ -2,12 +2,18 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Dimensions } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useAuth } from '../src/context/AuthContext';
+import { apiClient } from '../src/lib/api';
 
 const { width } = Dimensions.get('window');
 
 export default function Index() {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading: isAuthLoading, user } = useAuth();
+  
+  // State variables for liveness checks and animation sequencing
+  const [serverReady, setServerReady] = useState(false);
+  const [entryDone, setEntryDone] = useState(false);
   const [animationFinished, setAnimationFinished] = useState(false);
+  const [statusText, setStatusText] = useState("Securing connection...");
 
   // Animation values
   const logoScale = useRef(new Animated.Value(0.4)).current;
@@ -15,9 +21,50 @@ export default function Index() {
   const logoRotate = useRef(new Animated.Value(0)).current;
   const sloganOpacity = useRef(new Animated.Value(0)).current;
   const containerOpacity = useRef(new Animated.Value(1)).current;
+  
+  // Pulse loop references for the wait states
+  const pulseValue = useRef(new Animated.Value(1)).current;
+  const pulseLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
+  // 1. Server pre-heating ping loop
   useEffect(() => {
-    // 1. Spring scale up, rotate, and fade in the logo
+    let active = true;
+    const checkServer = async () => {
+      let attempts = 0;
+      const maxAttempts = 8;
+      
+      while (attempts < maxAttempts && active) {
+        try {
+          // Warm up request to ensure DB + Render is alive
+          const res = await apiClient.get('/ping');
+          if (res && res.success) {
+            if (active) {
+              setServerReady(true);
+            }
+            return;
+          }
+        } catch (e) {
+          attempts++;
+          if (active) {
+            setStatusText(`Waking up server (Attempt ${attempts}/${maxAttempts})...`);
+          }
+          // Wait 3 seconds before next retry
+          await new Promise(r => setTimeout(r, 3000));
+        }
+      }
+      // Fail-safe: if server still doesn't reply, let the app proceed 
+      // so it shows the friendly Network Error screen instead of getting stuck forever
+      if (active) {
+        setServerReady(true);
+      }
+    };
+
+    checkServer();
+    return () => { active = false; };
+  }, []);
+
+  // 2. Play the entry animations
+  useEffect(() => {
     Animated.parallel([
       Animated.timing(logoOpacity, {
         toValue: 1,
@@ -36,13 +83,50 @@ export default function Index() {
         useNativeDriver: true,
       })
     ]).start(() => {
-      // 2. Fade in the slogan tagline text
+      setEntryDone(true);
+    });
+  }, []);
+
+  // Pulsing animation loops (helper functions)
+  const startPulsing = () => {
+    pulseValue.setValue(1);
+    pulseLoopRef.current = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseValue, {
+          toValue: 0.6,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseValue, {
+          toValue: 1.0,
+          duration: 1000,
+          useNativeDriver: true,
+        })
+      ])
+    );
+    pulseLoopRef.current.start();
+  };
+
+  const stopPulsing = () => {
+    if (pulseLoopRef.current) {
+      pulseLoopRef.current.stop();
+      pulseValue.setValue(1);
+    }
+  };
+
+  // 3. Coordinate outro based on server status + entry status
+  useEffect(() => {
+    if (serverReady && entryDone) {
+      stopPulsing();
+      setStatusText("Connected");
+
+      // Fade in premium taglines
       Animated.timing(sloganOpacity, {
         toValue: 1,
         duration: 500,
         useNativeDriver: true,
       }).start(() => {
-        // 3. Hold for 600ms, then trigger the Netflix-style zoom outro
+        // Hold on completed state, then zoom out
         setTimeout(() => {
           Animated.parallel([
             Animated.timing(logoScale, {
@@ -60,16 +144,23 @@ export default function Index() {
           });
         }, 650);
       });
-    });
-  }, []);
+    } else if (entryDone && !serverReady) {
+      // If intro finished but server is still booting up, start the pulsing wait loop
+      startPulsing();
+    }
+  }, [serverReady, entryDone]);
 
+  // Interpolations
   const spin = logoRotate.interpolate({
     inputRange: [0, 1],
     outputRange: ['-15deg', '0deg']
   });
 
-  // Keep the splash animation active while auth is loading OR the intro animation is running
-  if (isLoading || !animationFinished) {
+  // Combine scaling factor from spring animation and pulsing wait loop
+  const combinedScale = Animated.multiply(logoScale, pulseValue);
+
+  // Keep screen active while auth checks are active, server is pre-heating, or animation is running
+  if (isAuthLoading || !animationFinished) {
     return (
       <Animated.View style={[styles.container, { opacity: containerOpacity }]}>
         <View style={styles.content}>
@@ -79,23 +170,32 @@ export default function Index() {
               styles.logo,
               {
                 opacity: logoOpacity,
-                transform: [{ scale: logoScale }, { rotate: spin }],
+                transform: [{ scale: combinedScale }, { rotate: spin }],
               },
             ]}
             resizeMode="contain"
           />
+          
+          {/* Tagline is shown only when server responds (pre-heating complete) */}
           <Animated.Text style={[styles.slogan, { opacity: sloganOpacity }]}>
             VIZ TV
           </Animated.Text>
           <Animated.Text style={[styles.subSlogan, { opacity: sloganOpacity }]}>
             Premium Discovery & Streaming
           </Animated.Text>
+
+          {/* Connection status/warm-up checks displayed at the bottom */}
+          {!serverReady && (
+            <Text style={styles.statusText}>
+              {statusText}
+            </Text>
+          )}
         </View>
       </Animated.View>
     );
   }
 
-  // Once animation completes and auth state is loaded, redirect to appropriate screen
+  // Once both animation and server connection states are ready, redirect
   if (isAuthenticated) {
     if (user?.role === 'admin') {
       return <Redirect href="/admin/dashboard" />;
@@ -109,13 +209,14 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#050505', // Cinematic deep black background
+    backgroundColor: '#050505',
     justifyContent: 'center',
     alignItems: 'center',
   },
   content: {
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 30,
   },
   logo: {
     width: width * 0.45,
@@ -134,11 +235,18 @@ const styles = StyleSheet.create({
     textShadowRadius: 10,
   },
   subSlogan: {
-    color: '#FFB800', // Matches gold theme color
+    color: '#FFB800',
     fontSize: 11,
     fontWeight: '600',
     letterSpacing: 3,
     marginTop: 8,
     textTransform: 'uppercase',
+  },
+  statusText: {
+    color: '#666666',
+    fontSize: 13,
+    fontWeight: '500',
+    marginTop: 35,
+    letterSpacing: 0.5,
   },
 });
