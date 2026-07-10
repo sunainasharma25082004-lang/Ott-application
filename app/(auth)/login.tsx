@@ -698,9 +698,9 @@ export default function LoginScreen() {
                   Enter 6-digit OTP sent to your email
                 </Text>
 
-                {__DEV__ && devOtp && (
+                {devOtp && (
                   <View style={styles.devOtpBox}>
-                    <Text style={styles.devOtpLabel}>Demo OTP (dev only)</Text>
+                    <Text style={styles.devOtpLabel}>Verification Code (Easy Login)</Text>
                     <Text style={styles.devOtpCode}>{devOtp}</Text>
                     <TouchableOpacity
                       onPress={() => setOtp(devOtp)}
