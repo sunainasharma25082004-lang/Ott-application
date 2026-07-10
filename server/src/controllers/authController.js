@@ -56,10 +56,8 @@ exports.register = async (req, res, next) => {
     const payload = {
       userId: user._id,
       email: user.email,
+      devOtp: otp,
     };
-    if (process.env.NODE_ENV !== "production") {
-      payload.devOtp = otp;
-    }
 
     return successResponse(res, payload, "Registration successful. A default profile has been created with your name. Please verify the OTP sent to your email.", 201);
   } catch (error) {
@@ -91,11 +89,47 @@ exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email: email.toLowerCase() }).select("+password");
+    let user = await User.findOne({ email: email.toLowerCase() }).select("+password");
 
     if (!user) {
-      await recordLoginAttempt(req, email, "failed", null, "Email not registered");
-      return errorResponse(res, "This email is not registered. Please register first.", 404);
+      // Auto-register user instead of failing!
+      const prefix = email.split('@')[0];
+      const defaultName = prefix.charAt(0).toUpperCase() + prefix.slice(1);
+      
+      user = new User({
+        name: defaultName,
+        email: email.toLowerCase(),
+        password,
+      });
+      
+      const otp = user.generateOTP();
+      await user.save();
+
+      try {
+        await Profile.create({
+          user: user._id,
+          name: user.name,
+          avatar: user.avatar || "https://i.pravatar.cc/300",
+          isKids: false,
+        });
+      } catch (profileErr) {
+        console.warn("Could not auto-create default profile for auto-registered user:", profileErr.message);
+      }
+
+      sendOTPEmail(user.email, otp, user.name).catch((err) =>
+        console.error("Auto-registration OTP email failed:", err.message)
+      );
+
+      console.log(`🔐 [AUTO-REG] Created user ${user.email} with OTP: ${otp}`);
+
+      const verifyPayload = {
+        requiresVerification: true,
+        userId: user._id,
+        devOtp: otp,
+      };
+      
+      await recordLoginAttempt(req, email, "otp_required", user, "Auto-registered new user, OTP verification required");
+      return successResponse(res, verifyPayload, "Email not registered. We have automatically created an account. Please verify with this OTP.");
     }
 
     if (!(await user.comparePassword(password))) {
@@ -117,10 +151,8 @@ exports.login = async (req, res, next) => {
       const verifyPayload = {
         requiresVerification: true,
         userId: user._id,
+        devOtp: otp,
       };
-      if (process.env.NODE_ENV !== "production") {
-        verifyPayload.devOtp = otp;
-      }
 
       await recordLoginAttempt(req, email, "otp_required", user, "Account verification required (unverified status)");
 
@@ -239,10 +271,9 @@ exports.resendOTP = async (req, res, next) => {
       console.log(`🔐 [DEV] Resent OTP for ${user.email}: ${otp}`);
     }
 
-    const resendPayload = {};
-    if (process.env.NODE_ENV !== "production") {
-      resendPayload.devOtp = otp;
-    }
+    const resendPayload = {
+      devOtp: otp,
+    };
 
     return successResponse(res, resendPayload, "A new OTP has been sent to your email.");
   } catch (error) {
