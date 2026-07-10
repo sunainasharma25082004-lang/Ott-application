@@ -1,10 +1,21 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Animated, Dimensions, Platform } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useAuth } from '../src/context/AuthContext';
 import { apiClient } from '../src/lib/api';
 
 const { width } = Dimensions.get('window');
+
+// Inject global black background style for HTML elements on Web
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = `
+    html, body, #root {
+      background-color: #050505 !important;
+    }
+  `;
+  document.head.appendChild(style);
+}
 
 export default function Index() {
   const { isAuthenticated, isLoading: isAuthLoading, user } = useAuth();
@@ -134,9 +145,14 @@ export default function Index() {
               duration: 700,
               useNativeDriver: true,
             }),
-            Animated.timing(containerOpacity, {
+            Animated.timing(logoOpacity, {
               toValue: 0,
               duration: 600,
+              useNativeDriver: true,
+            }),
+            Animated.timing(sloganOpacity, {
+              toValue: 0,
+              duration: 500,
               useNativeDriver: true,
             })
           ]).start(() => {
