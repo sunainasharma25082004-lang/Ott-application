@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Dimensions, Platform } from 'react-native';
 import { Redirect } from 'expo-router';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { useAuth } from '../src/context/AuthContext';
 import { apiClient } from '../src/lib/api';
 
@@ -22,20 +23,12 @@ export default function Index() {
   
   // State variables for liveness checks and animation sequencing
   const [serverReady, setServerReady] = useState(false);
-  const [entryDone, setEntryDone] = useState(false);
+  const [videoFinished, setVideoFinished] = useState(false);
   const [animationFinished, setAnimationFinished] = useState(false);
   const [statusText, setStatusText] = useState("Securing connection...");
 
   // Animation values
-  const logoScale = useRef(new Animated.Value(0.4)).current;
-  const logoOpacity = useRef(new Animated.Value(0)).current;
-  const logoRotate = useRef(new Animated.Value(0)).current;
-  const sloganOpacity = useRef(new Animated.Value(0)).current;
   const containerOpacity = useRef(new Animated.Value(1)).current;
-  
-  // Pulse loop references for the wait states
-  const pulseValue = useRef(new Animated.Value(1)).current;
-  const pulseLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
   // 1. Server pre-heating ping loop
   useEffect(() => {
@@ -63,8 +56,7 @@ export default function Index() {
           await new Promise(r => setTimeout(r, 3000));
         }
       }
-      // Fail-safe: if server still doesn't reply, let the app proceed 
-      // so it shows the friendly Network Error screen instead of getting stuck forever
+      // Fail-safe: if server still doesn't reply, let the app proceed
       if (active) {
         setServerReady(true);
       }
@@ -74,139 +66,71 @@ export default function Index() {
     return () => { active = false; };
   }, []);
 
-  // 2. Play the entry animations
+  // 2. Play intro video using expo-video
+  const player = useVideoPlayer(require('../assets/video.mp4'), (p) => {
+    p.play();
+    p.loop = false;
+    p.muted = Platform.OS === 'web'; // Muted on Web for autoplay policy compliance, unmuted on Native
+    p.volume = 1;
+  });
+
+  // Track video completion
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(logoOpacity, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.spring(logoScale, {
-        toValue: 1.0,
-        friction: 5,
-        tension: 40,
-        useNativeDriver: true,
-      }),
-      Animated.timing(logoRotate, {
-        toValue: 1,
-        duration: 1000,
-        useNativeDriver: true,
-      })
-    ]).start(() => {
-      setEntryDone(true);
+    const subscription = player.addListener('playToEnd', () => {
+      setVideoFinished(true);
     });
+    return () => {
+      subscription.remove();
+    };
+  }, [player]);
+
+  // Video playback fail-safe (in case video fails to decode or play)
+  useEffect(() => {
+    const failSafeTimer = setTimeout(() => {
+      setVideoFinished(true);
+    }, 6000); // 6 seconds threshold
+    return () => clearTimeout(failSafeTimer);
   }, []);
 
-  // Pulsing animation loops (helper functions)
-  const startPulsing = () => {
-    pulseValue.setValue(1);
-    pulseLoopRef.current = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseValue, {
-          toValue: 0.6,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseValue, {
-          toValue: 1.0,
-          duration: 1000,
-          useNativeDriver: true,
-        })
-      ])
-    );
-    pulseLoopRef.current.start();
-  };
-
-  const stopPulsing = () => {
-    if (pulseLoopRef.current) {
-      pulseLoopRef.current.stop();
-      pulseValue.setValue(1);
-    }
-  };
-
-  // 3. Coordinate outro based on server status + entry status
+  // 3. Coordinate transitions when both server connection is verified and video has completed
   useEffect(() => {
-    if (serverReady && entryDone) {
-      stopPulsing();
+    if (serverReady && videoFinished) {
       setStatusText("Connected");
 
-      // Fade in premium taglines
-      Animated.timing(sloganOpacity, {
-        toValue: 1,
+      // Smoothly fade out the splash container
+      Animated.timing(containerOpacity, {
+        toValue: 0,
         duration: 500,
         useNativeDriver: true,
       }).start(() => {
-        // Hold on completed state, then zoom out
-        setTimeout(() => {
-          Animated.parallel([
-            Animated.timing(logoScale, {
-              toValue: 3.5,
-              duration: 700,
-              useNativeDriver: true,
-            }),
-            Animated.timing(logoOpacity, {
-              toValue: 0,
-              duration: 600,
-              useNativeDriver: true,
-            }),
-            Animated.timing(sloganOpacity, {
-              toValue: 0,
-              duration: 500,
-              useNativeDriver: true,
-            })
-          ]).start(() => {
-            setAnimationFinished(true);
-          });
-        }, 650);
+        setAnimationFinished(true);
       });
-    } else if (entryDone && !serverReady) {
-      // If intro finished but server is still booting up, start the pulsing wait loop
-      startPulsing();
     }
-  }, [serverReady, entryDone]);
+  }, [serverReady, videoFinished]);
 
-  // Interpolations
-  const spin = logoRotate.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['-15deg', '0deg']
-  });
-
-  // Combine scaling factor from spring animation and pulsing wait loop
-  const combinedScale = Animated.multiply(logoScale, pulseValue);
-
-  // Keep screen active while auth checks are active, server is pre-heating, or animation is running
+  // Keep screen active while auth checks are active, server is pre-heating, or video is playing
   if (isAuthLoading || !animationFinished) {
     return (
       <Animated.View style={[styles.container, { opacity: containerOpacity }]}>
-        <View style={styles.content}>
-          <Animated.Image
-            source={require('../assets/icon.png')}
-            style={[
-              styles.logo,
-              {
-                opacity: logoOpacity,
-                transform: [{ scale: combinedScale }, { rotate: spin }],
-              },
-            ]}
-            resizeMode="contain"
+        {!videoFinished ? (
+          <VideoView
+            player={player}
+            style={styles.fullScreenVideo}
+            contentFit="cover"
+            nativeControls={false}
           />
-          
-          {/* Tagline is shown only when server responds (pre-heating complete) */}
-          <Animated.Text style={[styles.slogan, { opacity: sloganOpacity }]}>
-            VIZ TV
-          </Animated.Text>
-          <Animated.Text style={[styles.subSlogan, { opacity: sloganOpacity }]}>
-            Premium Discovery & Streaming
-          </Animated.Text>
-
-          {/* Connection status/warm-up checks displayed at the bottom */}
-          {!serverReady && (
+        ) : (
+          <View style={styles.content}>
+            <Animated.Image
+              source={require('../assets/icon.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
             <Text style={styles.statusText}>
               {statusText}
             </Text>
-          )}
-        </View>
+          </View>
+        )}
       </Animated.View>
     );
   }
@@ -229,6 +153,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  fullScreenVideo: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    right: 0,
+    width: '100%',
+    height: '100%',
+  },
   content: {
     justifyContent: 'center',
     alignItems: 'center',
@@ -240,29 +173,11 @@ const styles = StyleSheet.create({
     borderRadius: width * 0.225,
     marginBottom: 20,
   },
-  slogan: {
-    color: '#FFFFFF',
-    fontSize: 32,
-    fontWeight: '800',
-    letterSpacing: 2,
-    marginTop: 10,
-    textShadowColor: 'rgba(255, 255, 255, 0.2)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 10,
-  },
-  subSlogan: {
-    color: '#FFB800',
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 3,
-    marginTop: 8,
-    textTransform: 'uppercase',
-  },
   statusText: {
     color: '#666666',
     fontSize: 13,
     fontWeight: '500',
-    marginTop: 35,
+    marginTop: 25,
     letterSpacing: 0.5,
   },
 });
