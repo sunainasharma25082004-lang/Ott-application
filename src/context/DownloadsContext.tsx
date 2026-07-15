@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import { getNetworkState } from '../utils/networkState';
 import { QualityVariant } from '../utils/cloudinaryVideo';
@@ -24,8 +25,8 @@ interface DownloadsContextType {
 
 const DownloadsContext = createContext<DownloadsContextType | undefined>(undefined);
 
-const MANIFEST_FILE = FileSystem.documentDirectory + 'downloads.json';
-const DOWNLOADS_DIR = FileSystem.documentDirectory + 'downloads/';
+const MANIFEST_FILE = FileSystem.documentDirectory ? FileSystem.documentDirectory + 'downloads.json' : '';
+const DOWNLOADS_DIR = FileSystem.documentDirectory ? FileSystem.documentDirectory + 'downloads/' : '';
 
 export const DownloadsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [downloads, setDownloads] = useState<Download[]>([]);
@@ -36,6 +37,7 @@ export const DownloadsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, []);
 
   const loadManifest = async () => {
+    if (Platform.OS === 'web') return;
     try {
       const info = await FileSystem.getInfoAsync(MANIFEST_FILE);
       if (info.exists) {
@@ -48,6 +50,10 @@ export const DownloadsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const saveManifest = async (data: Download[]) => {
+    if (Platform.OS === 'web') {
+      setDownloads(data);
+      return;
+    }
     try {
       const dirInfo = await FileSystem.getInfoAsync(DOWNLOADS_DIR);
       if (!dirInfo.exists) {
@@ -61,6 +67,10 @@ export const DownloadsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const startDownload = useCallback(async (item: VideoItem, quality: QualityVariant) => {
+    if (Platform.OS === 'web') {
+      throw new Error('Downloads are not supported on web browsers');
+    }
+
     const { isOnline } = getNetworkState();
     if (!isOnline) {
       throw new Error('You must be online to download videos');
@@ -118,6 +128,7 @@ export const DownloadsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, [downloads]);
 
   const deleteDownload = useCallback(async (id: string) => {
+    if (Platform.OS === 'web') return;
     try {
       const download = downloads.find(d => d.id === id);
       if (download) {
