@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Trash2, AlertTriangle, CheckCircle, Send } from 'lucide-react';
+import { Trash2, AlertTriangle, CheckCircle, Send, ArrowLeft } from 'lucide-react';
 
-export default function AccountDeletion() {
+export default function AccountDeletion({ onBackHome }) {
   const [email, setEmail] = useState('');
   const [reason, setReason] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -16,6 +16,15 @@ export default function AccountDeletion() {
   return (
     <section className="account-deletion-section" id="account-deletion">
       <div className="container">
+        {onBackHome && (
+          <div className="back-home-bar">
+            <button onClick={onBackHome} className="btn-secondary back-btn">
+              <ArrowLeft size={18} />
+              <span>Back to Main Website</span>
+            </button>
+          </div>
+        )}
+
         <div className="section-header">
           <div className="section-badge">
             <Trash2 size={16} />
@@ -90,6 +99,13 @@ export default function AccountDeletion() {
       <style>{`
         .account-deletion-section {
           padding: 80px 0;
+        }
+        .back-home-bar {
+          margin-bottom: 2rem;
+        }
+        .back-btn {
+          padding: 8px 18px;
+          font-size: 0.9rem;
         }
         .deletion-card {
           max-width: 680px;

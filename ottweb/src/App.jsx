@@ -112,19 +112,19 @@ export default function App() {
       <main>
         {activeTab === 'child-safety' ? (
           <div className="standalone-view">
-            <ChildSafetyView />
+            <ChildSafetyView onBackHome={() => changeTab('home')} />
           </div>
         ) : activeTab === 'privacy' ? (
           <div className="standalone-view">
-            <LegalPrivacyView onNavigateDeletion={handleNavigateDeletion} />
+            <LegalPrivacyView onNavigateDeletion={handleNavigateDeletion} onBackHome={() => changeTab('home')} />
           </div>
         ) : activeTab === 'terms' ? (
           <div className="standalone-view">
-            <TermsOfService />
+            <TermsOfService onBackHome={() => changeTab('home')} />
           </div>
         ) : activeTab === 'account-deletion' ? (
           <div className="standalone-view">
-            <AccountDeletion />
+            <AccountDeletion onBackHome={() => changeTab('home')} />
           </div>
         ) : (
           <>

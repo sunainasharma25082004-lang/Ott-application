@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { ShieldAlert, HeartHandshake, Eye, AlertTriangle, Send, CheckCircle2, Lock, Mail } from 'lucide-react';
+import { ShieldAlert, HeartHandshake, Eye, AlertTriangle, Send, CheckCircle2, Lock, Mail, ArrowLeft } from 'lucide-react';
 
-export default function ChildSafetyView() {
+export default function ChildSafetyView({ onBackHome }) {
   const [reportEmail, setReportEmail] = useState('');
   const [reportDetails, setReportDetails] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -16,6 +16,15 @@ export default function ChildSafetyView() {
   return (
     <section className="child-safety-section" id="child-safety">
       <div className="container">
+        {onBackHome && (
+          <div className="back-home-bar">
+            <button onClick={onBackHome} className="btn-secondary back-btn">
+              <ArrowLeft size={18} />
+              <span>Back to Main Website</span>
+            </button>
+          </div>
+        )}
+
         <div className="section-header">
           <div className="section-badge badge-alert">
             <ShieldAlert size={16} />
@@ -144,6 +153,13 @@ export default function ChildSafetyView() {
         .child-safety-section {
           padding: 100px 0;
           position: relative;
+        }
+        .back-home-bar {
+          margin-bottom: 2rem;
+        }
+        .back-btn {
+          padding: 8px 18px;
+          font-size: 0.9rem;
         }
         .badge-alert {
           background: rgba(239, 68, 68, 0.15) !important;

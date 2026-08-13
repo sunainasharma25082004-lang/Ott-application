@@ -1,10 +1,19 @@
 import React from 'react';
-import { FileCheck, ShieldAlert, Scale, UserCheck } from 'lucide-react';
+import { FileCheck, ShieldAlert, Scale, UserCheck, ArrowLeft } from 'lucide-react';
 
-export default function TermsOfService() {
+export default function TermsOfService({ onBackHome }) {
   return (
     <section className="terms-section" id="terms">
       <div className="container">
+        {onBackHome && (
+          <div className="back-home-bar">
+            <button onClick={onBackHome} className="btn-secondary back-btn">
+              <ArrowLeft size={18} />
+              <span>Back to Main Website</span>
+            </button>
+          </div>
+        )}
+
         <div className="section-header">
           <div className="section-badge">
             <FileCheck size={16} />
@@ -65,6 +74,13 @@ export default function TermsOfService() {
         .terms-section {
           padding: 100px 0;
           position: relative;
+        }
+        .back-home-bar {
+          margin-bottom: 2rem;
+        }
+        .back-btn {
+          padding: 8px 18px;
+          font-size: 0.9rem;
         }
       `}</style>
     </section>

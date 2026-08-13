@@ -1,10 +1,19 @@
 import React from 'react';
-import { Shield, Lock, Eye, FileText, Mail, Trash2 } from 'lucide-react';
+import { Shield, Lock, Eye, FileText, Mail, Trash2, ArrowLeft } from 'lucide-react';
 
-export default function LegalPrivacyView({ onNavigateDeletion }) {
+export default function LegalPrivacyView({ onNavigateDeletion, onBackHome }) {
   return (
     <section className="privacy-section" id="privacy">
       <div className="container">
+        {onBackHome && (
+          <div className="back-home-bar">
+            <button onClick={onBackHome} className="btn-secondary back-btn">
+              <ArrowLeft size={18} />
+              <span>Back to Main Website</span>
+            </button>
+          </div>
+        )}
+
         <div className="section-header">
           <div className="section-badge">
             <Shield size={16} />
@@ -24,7 +33,7 @@ export default function LegalPrivacyView({ onNavigateDeletion }) {
             <div className="legal-text">
               <h3>1. Overview & Scope</h3>
               <p>
-                This Privacy Policy discloses the data collection, usage, storage, and protection practices of <strong>VIZ TV</strong> ("we", "our", or "us"). This policy applies to all users accessing our services via the VIZ TV mobile application (package ID: <code>com.vizdigitals.viztv</code>) or our website. We are dedicated to maintaining user confidentiality and strict adherence to the Google Play Developer Data Safety Guidelines.
+                This Privacy Policy discloses the data collection, usage, storage, and protection practices of <strong>VIZ TV</strong> ("we", "our", or "us"). This policy applies to all users accessing our services via the VIZ TV mobile application (package ID: <code>com.vizdigitals.viztv</code>) or our website. We are dedicated to maintaining user confidentiality and strict adherence to Google Play Developer Data Safety Guidelines.
               </p>
             </div>
           </div>
@@ -113,6 +122,13 @@ export default function LegalPrivacyView({ onNavigateDeletion }) {
         .privacy-section {
           padding: 100px 0;
           position: relative;
+        }
+        .back-home-bar {
+          margin-bottom: 2rem;
+        }
+        .back-btn {
+          padding: 8px 18px;
+          font-size: 0.9rem;
         }
         .legal-container {
           display: flex;
