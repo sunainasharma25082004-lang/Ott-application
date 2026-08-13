@@ -1,8 +1,9 @@
 {
   "expo": {
-    "name": "Talent Hunt",
+    "name": "VIZ TV",
     "slug": "talent-hunt",
-    "scheme": "talenthunt",
+    "owner": "krishna7323",
+    "scheme": "viztv",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -23,7 +24,8 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.talenthunt.app"
+      "package": "com.vizdigitals.viztv",
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/favicon.png"
