@@ -36,6 +36,7 @@ export default function Footer({ setActiveTab, onNavigateDeletion }) {
           <div className="footer-links-col">
             <h4>Legal & Safety</h4>
             <ul>
+              <li><button onClick={() => setActiveTab('child-safety')} className="footer-btn-link">Child Safety Policy</button></li>
               <li><button onClick={() => setActiveTab('privacy')} className="footer-btn-link">Privacy Policy</button></li>
               <li><button onClick={() => setActiveTab('terms')} className="footer-btn-link">Terms of Service</button></li>
               <li><button onClick={onNavigateDeletion} className="footer-btn-link">Account Deletion Request</button></li>

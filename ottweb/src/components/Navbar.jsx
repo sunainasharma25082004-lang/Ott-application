@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Menu, X, Shield, PlayCircle, Star, Smartphone } from 'lucide-react';
+import { Download, Menu, X, ShieldAlert } from 'lucide-react';
 
 export default function Navbar({ activeTab, setActiveTab }) {
   const [scrolled, setScrolled] = useState(false);
@@ -19,6 +19,7 @@ export default function Navbar({ activeTab, setActiveTab }) {
     { id: 'features', label: 'Features' },
     { id: 'trending', label: 'Trending' },
     { id: 'talent-hunt', label: 'Talent Hunt' },
+    { id: 'child-safety', label: 'Child Safety' },
     { id: 'privacy', label: 'Privacy Policy' },
     { id: 'terms', label: 'Terms' },
     { id: 'contact', label: 'Contact' },
@@ -175,18 +176,18 @@ export default function Navbar({ activeTab, setActiveTab }) {
         .desktop-nav ul {
           display: flex;
           align-items: center;
-          gap: 1.5rem;
+          gap: 1.2rem;
           list-style: none;
         }
         .nav-link {
           background: none;
           border: none;
           color: var(--text-muted);
-          font-size: 0.95rem;
+          font-size: 0.92rem;
           font-weight: 500;
           cursor: pointer;
           transition: var(--transition);
-          padding: 6px 4px;
+          padding: 6px 2px;
           position: relative;
         }
         .nav-link:hover, .nav-link.active {
@@ -254,7 +255,7 @@ export default function Navbar({ activeTab, setActiveTab }) {
           width: 100%;
         }
 
-        @media (max-width: 992px) {
+        @media (max-width: 1100px) {
           .desktop-nav {
             display: none;
           }

@@ -9,6 +9,7 @@ import TalentHunt from './components/TalentHunt.jsx';
 import LegalPrivacyView from './components/LegalPrivacyView.jsx';
 import TermsOfService from './components/TermsOfService.jsx';
 import AccountDeletion from './components/AccountDeletion.jsx';
+import ChildSafetyView from './components/ChildSafetyView.jsx';
 import Faq from './components/Faq.jsx';
 import Contact from './components/Contact.jsx';
 import Footer from './components/Footer.jsx';
@@ -20,6 +21,7 @@ const getTabFromUrl = () => {
     const rawHash = decodeURIComponent(window.location.hash || '').toLowerCase();
     const combined = `${rawPath} ${rawHash}`;
 
+    if (combined.includes('child') || combined.includes('chaild') || combined.includes('kids')) return 'child-safety';
     if (combined.includes('privacy')) return 'privacy';
     if (combined.includes('term')) return 'terms';
     if (combined.includes('delete') || combined.includes('account-deletion')) return 'account-deletion';
@@ -70,7 +72,8 @@ export default function App() {
     setActiveTab(newTab);
     
     let path = '/';
-    if (newTab === 'privacy') path = '/privacy-policy';
+    if (newTab === 'child-safety') path = '/child-safety';
+    else if (newTab === 'privacy') path = '/privacy-policy';
     else if (newTab === 'terms') path = '/terms-of-service';
     else if (newTab === 'account-deletion') path = '/account-deletion';
     else if (newTab !== 'home') path = `/#${newTab}`;
@@ -81,7 +84,7 @@ export default function App() {
       console.warn('History pushState restricted:', e);
     }
 
-    if (['privacy', 'terms', 'account-deletion'].includes(newTab)) {
+    if (['child-safety', 'privacy', 'terms', 'account-deletion'].includes(newTab)) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
       const el = document.getElementById(newTab);
@@ -107,7 +110,11 @@ export default function App() {
       <Navbar activeTab={activeTab} setActiveTab={changeTab} />
 
       <main>
-        {activeTab === 'privacy' ? (
+        {activeTab === 'child-safety' ? (
+          <div className="standalone-view">
+            <ChildSafetyView />
+          </div>
+        ) : activeTab === 'privacy' ? (
           <div className="standalone-view">
             <LegalPrivacyView onNavigateDeletion={handleNavigateDeletion} />
           </div>
@@ -131,6 +138,7 @@ export default function App() {
             <ContentShowcase onOpenVideo={(item) => setActiveVideo(item)} />
             <TalentHunt />
             <LegalPrivacyView onNavigateDeletion={handleNavigateDeletion} />
+            <ChildSafetyView />
             <TermsOfService />
             <AccountDeletion />
             <Faq />
